@@ -1,6 +1,18 @@
 # CTkMenuBarPlus
 Modern menu bar widget library for customtkinter with enhanced features.
 
+## Quick Navigation
+- [Installation](#installation-anchor)
+- [CTkMenuBar — Arguments](#ctkmenubar-arguments)
+- [CTkTitleMenu — Arguments](#ctktitlemenu-arguments)
+- [CustomDropdownMenu — Arguments](#customdropdownmenu-arguments)
+- [CustomDropdownMenu — add_option() Parameters](#customdropdownmenu-add-option-params)
+- [ContextMenu — Arguments](#contextmenu-arguments)
+- [Keyboard Accelerators](#keyboard-accelerators-anchor)
+- [Theming](#theming-anchor)
+- [Error Handling](#error-handling-anchor)
+- [Advanced Features](#advanced-features-anchor)
+
 ## Features
 - Custom dropdown menus with full customization
 - Menu bar integration - add menus to window top or title bar
@@ -13,6 +25,8 @@ Modern menu bar widget library for customtkinter with enhanced features.
 - Platform support - cross-platform (Windows title menu Windows-only)
 
 ## Installation
+
+<a id="installation-anchor"></a>
 
 ```bash
 pip install CTkMenuBarPlus
@@ -46,16 +60,18 @@ edit_button = menu_bar.add_cascade("Edit")
 - **.toggle()**: Toggle menu bar visibility
 
 ### Arguments
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| **master** | Widget | Parent widget (root or frame) |
-| **bg_color** | str/tuple | Background color (theme tuple or string) |
-| **height** | int | Menu bar height in pixels (default: 25) |
-| **width** | int | Menu button width in pixels (default: 10) |
-| **padx** | int | Horizontal spacing between buttons (default: 5) |
-| **pady** | int | Vertical padding (default: 2) |
-| **postcommand** | callable | Function called before showing dropdown |
-| ***other_args** | various | Additional CTkFrame parameters |
+<a id="ctkmenubar-arguments"></a>
+
+| Parameter       | Type      | Default            | Description                              |
+|-----------------|-----------|--------------------|------------------------------------------|
+| **master**      | Widget    | -                  | Parent widget (root or frame)            |
+| **bg_color**    | str/tuple | ["white", "black"] | Background color (theme tuple or string) |
+| **height**      | int       | 25                 | Menu bar height in pixels                |
+| **width**       | int       | 10                 | Menu button width in pixels              |
+| **padx**        | int       | 5                  | Horizontal spacing between buttons       |
+| **pady**        | int       | 2                  | Vertical padding                         |
+| **postcommand** | callable  | None               | Function called before showing dropdown  |
+| ***other_args** | various   | -                  | Additional CTkFrame parameters           |
 
 ---
 
@@ -82,14 +98,16 @@ file_button = title_menu.add_cascade("File")
 - **.toggle()**: Toggle title menu visibility
 
 ### Arguments
-| Parameter | Type | Description                |
-|-----------|------|----------------------------|
-| **master** | CTk/CTkToplevel | Parent window (root or toplevel only) |
-| **title_bar_color** | str/int | Title bar color ("default" for auto theme) |
-| **padx** | int | Spacing between menu buttons (default: 10) |
-| **width** | int | Width of menu buttons (default: 10) |
-| **x_offset** | int | Horizontal position offset |
-| **y_offset** | int | Vertical position offset   |
+<a id="ctktitlemenu-arguments"></a>
+
+| Parameter           | Type            | Default   | Description                           |
+|---------------------|-----------------|-----------|---------------------------------------|
+| **master**          | CTk/CTkToplevel | -         | Parent window (root or toplevel only) |
+| **title_bar_color** | str/int         | "default" | Title bar color                       |
+| **padx**            | int             | 10        | Spacing between menu buttons          |
+| **width**           | int             | 10        | Width of menu buttons                 |
+| **x_offset**        | int             | None      | Horizontal position offset            |
+| **y_offset**        | int             | None      | Vertical position offset              |
 
 ---
 
@@ -158,39 +176,43 @@ option_button.set_enabled(False)  # Disable item
 - **.destroy()**: Clean up resources and destroy menu
 
 ### Arguments
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| **widget** | Widget | - | Widget that triggers this dropdown |
-| **master** | Widget | None | Parent widget (auto-determined if None) |
-| **border_width** | int | 1 | Border width in pixels |
-| **width** | int | 150 | Menu width in pixels |
-| **height** | int | 25 | Menu item height in pixels |
-| **bg_color** | str/tuple | None | Background color |
-| **corner_radius** | int | 10 | Corner radius for rounded corners |
-| **border_color** | str/tuple | "grey50" | Border color |
-| **separator_color** | str/tuple | ("grey80", "grey20") | Separator line color |
-| **text_color** | str/tuple | ("black", "white") | Text color |
-| **fg_color** | str/tuple | "transparent" | Foreground color |
-| **hover_color** | str/tuple | ("grey75", "grey25") | Hover color |
-| **font** | CTkFont | ("helvetica", 12) | Font for menu text |
-| **padx** | int | 3 | Horizontal padding |
-| **pady** | int | 3 | Vertical padding |
-| **cursor** | str | "hand2" | Cursor type on hover |
-| **max_visible_options** | int | 10 | Options before scrollbar appears |
-| **enable_scrollbar** | bool | True | Enable scrollbar for long menus |
-| **scrollbar_width** | int | 16 | Scrollbar width in pixels |
+<a id="customdropdownmenu-arguments"></a>
+
+| Parameter               | Type      | Default              | Description                             |
+|-------------------------|-----------|----------------------|-----------------------------------------|
+| **widget**              | Widget    | -                    | Widget that triggers this dropdown      |
+| **master**              | Widget    | None                 | Parent widget (auto-determined if None) |
+| **border_width**        | int       | 1                    | Border width in pixels                  |
+| **width**               | int       | 150                  | Menu width in pixels                    |
+| **height**              | int       | 25                   | Menu item height in pixels              |
+| **bg_color**            | str/tuple | None                 | Background color                        |
+| **corner_radius**       | int       | 10                   | Corner radius for rounded corners       |
+| **border_color**        | str/tuple | "grey50"             | Border color                            |
+| **separator_color**     | str/tuple | ("grey80", "grey20") | Separator line color                    |
+| **text_color**          | str/tuple | ("black", "white")   | Text color                              |
+| **fg_color**            | str/tuple | "transparent"        | Foreground color                        |
+| **hover_color**         | str/tuple | ("grey75", "grey25") | Hover color                             |
+| **font**                | CTkFont   | ("helvetica", 12)    | Font for menu text                      |
+| **padx**                | int       | 3                    | Horizontal padding                      |
+| **pady**                | int       | 3                    | Vertical padding                        |
+| **cursor**              | str       | "hand2"              | Cursor type on hover                    |
+| **max_visible_options** | int       | 10                   | Options before scrollbar appears        |
+| **enable_scrollbar**    | bool      | True                 | Enable scrollbar for long menus         |
+| **scrollbar_width**     | int       | 16                   | Scrollbar width in pixels               |
 
 ### add_option() Parameters
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| **option** | str | - | Text to display for this option |
-| **command** | callable | None | Function to call when selected |
-| **accelerator** | str | None | Keyboard shortcut (e.g., "Ctrl+S", "Alt+F4") |
-| **icon** | str/PIL.Image | None | Icon file path or PIL Image object |
-| **checkable** | bool | False | Whether item can be checked/unchecked |
-| **checked** | bool | False | Initial checked state (if checkable=True) |
-| **enabled** | bool | True | Whether item is initially enabled |
-| ***kwargs** | various | - | Additional CTkButton styling options |
+<a id="customdropdownmenu-add-option-params"></a>
+
+| Parameter       | Type          | Default   | Description                                  |
+|-----------------|---------------|-----------|----------------------------------------------|
+| **option**      | str           | -         | Text to display for this option              |
+| **command**     | callable      | None      | Function to call when selected               |
+| **accelerator** | str           | None      | Keyboard shortcut (e.g., "Ctrl+S", "Alt+F4") |
+| **icon**        | str/PIL.Image | None      | Icon file path or PIL Image object           |
+| **checkable**   | bool          | False     | Whether item can be checked/unchecked        |
+| **checked**     | bool          | False     | Initial checked state (if checkable=True)    |
+| **enabled**     | bool          | True      | Whether item is initially enabled            |
+| ***kwargs**     | various       | -         | Additional CTkButton styling options         |
 
 ---
 
@@ -219,14 +241,18 @@ Same as CustomDropdownMenu - inherits all functionality plus:
 - **Full feature support** - accelerators, icons, checkable items, submenus
 
 ### Arguments
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| **widget** | CTkBaseClass | Widget to attach context menu to |
-| ***kwargs** | various | All CustomDropdownMenu parameters supported |
+<a id="contextmenu-arguments"></a>
+
+| Parameter   | Type         | Description                                 |
+|-------------|--------------|---------------------------------------------|
+| **widget**  | CTkBaseClass | Widget to attach context menu to            |
+| ***kwargs** | various      | All CustomDropdownMenu parameters supported |
 
 ---
 
 ## Theming
+
+<a id="theming-anchor"></a>
 
 CTkMenuBarPlus automatically adapts to customtkinter appearance modes:
 
@@ -251,6 +277,8 @@ dropdown = CustomDropdownMenu(
 ---
 
 ## Error Handling
+
+<a id="error-handling-anchor"></a>
 
 The library includes comprehensive error handling:
 
@@ -277,6 +305,8 @@ except MenuCommandExecutionError as e:
 
 ## Advanced Features
 
+<a id="advanced-features-anchor"></a>
+
 ### Scrollable Menus
 Large menus automatically get scrollbars:
 ```python
@@ -289,13 +319,43 @@ dropdown = CustomDropdownMenu(
 ```
 
 ### Keyboard Accelerators
+<a id="keyboard-accelerators-anchor"></a>
 Layout-independent shortcuts that work across keyboard layouts:
 ```python
-# Supports: Ctrl, Alt, Shift, Cmd (macOS)
+# Supports: Ctrl, Alt, Shift, Cmd (macOS), CmdOrCtrl (Cmd on macOS, Ctrl on others)
 # Keys: A-Z, 0-9, Function keys, special keys
+dropdown.add_option("Open", open_func, accelerator="CmdOrCtrl+O")
 dropdown.add_option("Save", save_func, accelerator="Ctrl+S")
+dropdown.add_option("Save as", save_func, accelerator="Ctrl+Shift+S")
 dropdown.add_option("Quit", quit_func, accelerator="Alt+F4")
 ```
+
+#### Supported keys and modifiers
+
+Modifiers
+- Ctrl / Control
+- Alt (Option on macOS)
+- Shift
+- Cmd (macOS only)
+- CmdOrCtrl (Cmd on macOS, Ctrl elsewhere)
+
+Keys (common to all platforms)
+- Letters: A–Z
+- Digits: 0–9
+- Function keys: F1–F12
+ 
+Special/navigation keys (platform-specific keycodes):
+
+| Platform   | Keys                                                                                                                                                                                                                     |
+|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Windows    | Delete/Del, Insert/Ins, Home, End, Page_Up/PageUp/PgUp, Page_Down/PageDown/PgDn, Up/Down/Left/Right, Tab, Enter/Return, Escape/Esc, Space, Backspace, punctuation: plus (+), minus (-), equal (=), comma (,), period (.) |
+| macOS      | Delete/Del (Backspace/Forward Delete), Insert, Home, End, Page_Up/PageUp/PgUp, Page_Down/PageDown/PgDn, Up/Down/Left/Right, Tab, Enter/Return, Escape/Esc, Space, Backspace                                              |
+| Linux/X11  | Delete/Del, Insert/Ins, Home, End, Page_Up/PageUp/PgUp, Page_Down/PageDown/PgDn, Up/Down/Left/Right, Tab, Enter/Return, Escape/Esc, Space, Backspace                                                                     |
+
+Notes
+- Punctuation shortcuts are limited: on Windows we support +, -, =, ,, . as accelerator keys. Other punctuation (e.g., /, ;, etc.) are not currently mapped.
+- Accelerators are layout‑independent: physical keycodes are used under the hood, so shortcuts work consistently across keyboard layouts.
+- Use CmdOrCtrl in strings to automatically map to Command (macOS) or Control (Windows/Linux).
 
 ### Dynamic Control
 Control menu items programmatically:

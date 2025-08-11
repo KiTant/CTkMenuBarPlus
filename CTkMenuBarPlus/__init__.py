@@ -5,7 +5,7 @@ CTkMenuBarPlus by xzyqox | KiTant (https://github.com/KiTant)
 Homepage: https://github.com/KiTant/CTkMenuBarPlus
 """
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 from .menu_bar import CTkMenuBar
 from .title_menu_win import CTkTitleMenu

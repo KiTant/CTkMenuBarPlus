@@ -12,17 +12,18 @@ Original Author: LucianoSaldivia | https://github.com/LucianoSaldivia
 CTkMenuBar Author: Akash Bora (Akascape) | https://github.com/Akascape
 Enhanced Features: xzyqox (KiTant) | https://github.com/KiTant
 
-Version: Enhanced Edition 1.0
+Version: Enhanced Edition 1.1
 """
 
 from __future__ import annotations
 import customtkinter
 from functools import partial
 import tkinter as tk
-from typing import Callable, Optional, Union, List, Dict, Any, Tuple
+from typing import Callable, Optional, Union, List, Any, Tuple
 import PIL.Image, PIL.ImageTk
 import warnings
 import sys
+from .accelerators import _register_accelerator, _unregister_accelerator
 
 
 # Custom Exception Classes
@@ -101,193 +102,6 @@ ColorType = Union[str, Tuple[str, str]]
 WidgetType = Union[customtkinter.CTkBaseClass, '_CDMSubmenuButton']
 RootType = Union[customtkinter.CTk, customtkinter.CTkToplevel]
 
-# Global storage for accelerator bindings, layout-independent
-_GLOBAL_ACCEL_BINDINGS: Dict[int, Dict[str, Dict[int, List[Callable]]]] = {}
-_LAST_ACCEL_EVENT = None
-
-
-def _register_accelerator(root: RootType, accelerator: str, callback: Callable):
-    """Register a keyboard accelerator that works regardless of keyboard layout.
-
-    This function creates layout-independent keyboard shortcuts by binding both
-    traditional keysym patterns and physical keycode handlers. This ensures
-    shortcuts work consistently across different keyboard layouts and languages.
-
-    Supported Modifiers: Ctrl, Alt, Shift, Cmd (macOS)
-    Supported Keys: A-Z, 0-9, F1-F12, Delete, Insert, Home, End, Page_Up, Page_Down, etc.
-    Supports both single keys (F1, F2, Delete) and modified keys (Ctrl+S, Alt+F4)
-
-    Args:
-        root: The root window (CTk or CTkToplevel) to bind the accelerator to
-        accelerator: Accelerator string in format 'Modifier+Key' or just 'Key' (e.g., "Ctrl+S", "Alt+F4", "F1")
-        callback: Function to call when the accelerator is triggered
-
-    Examples:
-        _register_accelerator(root, "Ctrl+S", save_function)
-        _register_accelerator(root, "Alt+F4", close_function)
-        _register_accelerator(root, "F1", help_function)
-        _register_accelerator(root, "Delete", delete_function)
-    """
-    # Parse accelerator string (e.g., "Ctrl+S", "Alt+F4", "F1", "Delete")
-    parts = accelerator.split('+')
-    
-    # Handle single keys (no modifier)
-    if len(parts) == 1:
-        modifier = None
-        key = parts[0]
-        modifier_lower = 'none'  # Special case for no modifier
-        tkinter_modifier = None
-    elif len(parts) == 2:
-        modifier, key = parts
-        modifier_lower = modifier.lower()
-        # Map modifier names to Tkinter event patterns
-        modifier_map = {
-            'ctrl': 'Control',
-            'alt': 'Alt',
-            'shift': 'Shift',
-            'cmd': 'Command'  # For macOS compatibility
-        }
-        
-        if modifier_lower not in modifier_map:
-            return  # Unsupported modifier
-        tkinter_modifier = modifier_map[modifier_lower]
-    else:
-        return  # Invalid format
-    
-    # Enhanced key mapping including function keys and special keys
-    key_upper = key.upper()
-    
-    # Platform-specific keycode dictionaries
-    if sys.platform == 'win32':
-        # Windows keycodes
-        function_keys = {
-            'F1': 112, 'F2': 113, 'F3': 114, 'F4': 115, 'F5': 116, 'F6': 117,
-            'F7': 118, 'F8': 119, 'F9': 120, 'F10': 121, 'F11': 122, 'F12': 123
-        }
-        special_keys = {
-            'DELETE': 46, 'DEL': 46,
-            'INSERT': 45, 'INS': 45,
-            'HOME': 36, 'END': 35,
-            'PAGE_UP': 33, 'PAGEUP': 33, 'PGUP': 33,
-            'PAGE_DOWN': 34, 'PAGEDOWN': 34, 'PGDN': 34,
-            'UP': 38, 'DOWN': 40, 'LEFT': 37, 'RIGHT': 39,
-            'TAB': 9,
-            'ENTER': 13, 'RETURN': 13,
-            'ESCAPE': 27, 'ESC': 27,
-            'SPACE': 32,
-            'BACKSPACE': 8,
-            'PLUS': 107, '+': 107,
-            'MINUS': 109, '-': 109,
-            'EQUAL': 187, '=': 187,
-            'COMMA': 188, ',': 188,
-            'PERIOD': 190, '.': 190
-        }
-    elif sys.platform == 'darwin':
-        # macOS keycodes
-        function_keys = {
-            'F1': 122, 'F2': 120, 'F3': 99,  'F4': 118, 'F5': 96,  'F6': 97,
-            'F7': 98,  'F8': 100, 'F9': 101, 'F10': 109, 'F11': 103, 'F12': 111
-        }
-        special_keys = {
-            'DELETE': 51, 'DEL': 117,  # 51 = Backspace, 117 = Forward Delete
-            'INSERT': 114,
-            'HOME': 115, 'END': 119,
-            'PAGE_UP': 116, 'PAGEUP': 116, 'PGUP': 116,
-            'PAGE_DOWN': 121, 'PAGEDOWN': 121, 'PGDN': 121,
-            'UP': 126, 'DOWN': 125, 'LEFT': 123, 'RIGHT': 124,
-            'TAB': 48,
-            'ENTER': 36, 'RETURN': 76,
-            'ESCAPE': 53, 'ESC': 53,
-            'SPACE': 49,
-            'BACKSPACE': 51,
-            # For PLUS/MINUS/EQUAL etc macOS uses printable char handling
-        }
-    else:
-        # Linux/X11 keycodes
-        function_keys = {
-            'F1': 67,  'F2': 68,  'F3': 69,  'F4': 70,  'F5': 71,  'F6': 72,
-            'F7': 73,  'F8': 74,  'F9': 75,  'F10': 76,  'F11': 95,  'F12': 96
-        }
-        special_keys = {
-            'DELETE': 119, 'DEL': 119,
-            'INSERT': 118, 'INS': 118,
-            'HOME': 110, 'END': 115,
-            'PAGE_UP': 112, 'PAGEUP': 112, 'PGUP': 112,
-            'PAGE_DOWN': 117, 'PAGEDOWN': 117, 'PGDN': 117,
-            'UP': 111, 'DOWN': 116, 'LEFT': 113, 'RIGHT': 114,
-            'TAB': 23,
-            'ENTER': 36, 'RETURN': 36,
-            'ESCAPE': 9, 'ESC': 9,
-            'SPACE': 65,
-            'BACKSPACE': 22,
-        }
-    
-    # Determine keycode
-    if key_upper in function_keys:
-        keycode = function_keys[key_upper]
-    elif key_upper in special_keys:
-        keycode = special_keys[key_upper]
-    elif len(key) == 1 and key.isalnum():
-        # Regular alphanumeric keys (A-Z, 0-9)
-        keycode = ord(key_upper)
-    else:
-        # Unsupported key
-        warnings.warn(f"Unsupported key in accelerator: {key}")
-        return
-
-    # Store binding info
-    root_id = root.winfo_id()
-    bindings = _GLOBAL_ACCEL_BINDINGS.setdefault(root_id, {})
-    modifier_bindings = bindings.setdefault(modifier_lower, {})
-    callbacks = modifier_bindings.setdefault(keycode, [])
-    callbacks.append(callback)
-
-    # Create unique handler attribute name for this modifier
-    handler_attr = f'_ctkmenubar_{modifier_lower}_binding'
-
-    # Ensure we have the generic handler only once per root per modifier
-    if not hasattr(root, handler_attr):
-        def _handle_key_press(event, mod=modifier_lower):
-            global _LAST_ACCEL_EVENT
-            import time
-            
-            # Create event signature for deduplication
-            current_time = time.time()
-            event_sig = (event.keycode, mod, current_time)
-            
-            # Prevent multiple firing within 100ms window for same key+modifier
-            if (_LAST_ACCEL_EVENT and 
-                _LAST_ACCEL_EVENT[0] == event.keycode and 
-                _LAST_ACCEL_EVENT[1] == mod and 
-                current_time - _LAST_ACCEL_EVENT[2] < 0.1):
-                return
-                
-            _LAST_ACCEL_EVENT = event_sig
-            
-            root_id_local = event.widget.winfo_toplevel().winfo_id()
-            if root_id_local in _GLOBAL_ACCEL_BINDINGS:
-                modifier_dict = _GLOBAL_ACCEL_BINDINGS[root_id_local].get(mod, {})
-                cb_list = modifier_dict.get(event.keycode, [])
-                if cb_list:  # Only process if we have callbacks
-                    for cb in cb_list:
-                        try:
-                            cb()
-                        except Exception as e:
-                            raise MenuCommandExecutionError(f"Error in accelerator callback: {e}") from e
-                    # Prevent further event propagation to avoid interfering with system bindings
-                    return "break"
-
-        # Bind to toplevel so it fires regardless of focus widget
-        if modifier_lower == 'none':
-            # For single keys, bind only to the root window to prevent multiple triggers
-            root.bind('<KeyPress>', _handle_key_press, add='+')
-        else:
-            # For modified keys, use bind instead of bind_all to reduce duplication
-            event_pattern = f'<{tkinter_modifier}-KeyPress>'
-            root.bind(event_pattern, _handle_key_press, add='+')
-            
-        setattr(root, handler_attr, True)
-
 
 class _CDMOptionButton(customtkinter.CTkButton):
     """Enhanced option button for dropdown menus with accelerator, icon, and state support."""
@@ -358,7 +172,27 @@ class _CDMOptionButton(customtkinter.CTkButton):
     def _setup_accelerator_display(self) -> None:
         """Ensure accelerator is reflected in display string."""
         self._refresh_display()
-    
+    def _get_accel_targets(self):
+        """Return a list of windows to bind accelerators to.
+
+        For title_menu overlay (transient toplevel), we bind to BOTH the
+        overlay and its transient master so that shortcuts work regardless of
+        where the focus currently is (overlay or main window).
+        """
+        tl = self.parent_menu.winfo_toplevel()
+        targets = [tl]
+        try:
+            trans_path = tl.tk.call('wm', 'transient', tl._w)
+            if trans_path:
+                master_widget = tl.nametowidget(trans_path)
+                if hasattr(master_widget, 'winfo_toplevel'):
+                    master_tl = master_widget.winfo_toplevel()
+                    if master_tl not in targets:
+                        targets.append(master_tl)
+        except Exception:
+            pass
+        return targets
+
     def setParentMenu(self, menu: "CustomDropdownMenu") -> None:
         """Set the parent menu and bind accelerator if provided.
         
@@ -373,109 +207,39 @@ class _CDMOptionButton(customtkinter.CTkButton):
     def _bind_accelerator(self) -> None:
         """Bind keyboard accelerator to the command with error handling."""
         try:
-            root = self.parent_menu.winfo_toplevel()
-            
-            # Bind traditional accelerator format
-            tk_accelerator = self._convert_accelerator_format(self.accelerator)
-            if tk_accelerator:
-                root.bind(tk_accelerator, lambda e: self._execute_if_enabled())
-            
-            # Bind layout-independent accelerator
-            _register_accelerator(root, self.accelerator, self._execute_if_enabled)
+            targets = self._get_accel_targets()
+            target_ids = {t.winfo_id() for t in targets}
+
+            # If already bound with same key and same targets, skip
+            if getattr(self, "_accel_bound", False) and getattr(self, "_accel_key", None) == self.accelerator and getattr(self, "_accel_target_ids", None) == target_ids:
+                return
+
+            # Unregister old bindings if key or targets changed
+            if getattr(self, "_accel_bound", False) and (getattr(self, "_accel_key", None) != self.accelerator or getattr(self, "_accel_target_ids", None) != target_ids):
+                prev_targets = getattr(self, "_accel_targets", []) or []
+                for pt in prev_targets:
+                    try:
+                        _unregister_accelerator(pt, getattr(self, "_accel_key", None), self._execute_if_enabled)
+                    except Exception:
+                        pass
+
+            # Register on all targets
+            for t in targets:
+                _register_accelerator(t, self.accelerator, self._execute_if_enabled)
+
+            # Mark as bound
+            self._accel_bound = True
+            self._accel_key = self.accelerator
+            self._accel_targets = targets
+            self._accel_target_ids = target_ids
             
         except Exception as e:
-            raise MenuIconError(f"Error binding accelerator {self.accelerator}: {e}") from e
+            raise MenuWidgetBindingError(f"Error binding accelerator {self.accelerator}: {e}") from e
     
     def _execute_if_enabled(self) -> None:
         """Execute button command only if enabled."""
         if self.enabled:
             self.invoke()
-    
-    def _convert_accelerator_format(self, accelerator: str) -> str:
-        """Convert accelerator format from 'Ctrl+O' to '<Control-o>' or 'F1' to '<F1>'.
-        
-        Args:
-            accelerator: Accelerator string in format 'Modifier+Key' or just 'Key'
-            
-        Returns:
-            Tkinter-compatible accelerator string or empty string if invalid
-        """
-        if not accelerator:
-            return ""
-        
-        parts = accelerator.split('+')
-        
-        # Handle single keys (no modifier)
-        if len(parts) == 1:
-            key = parts[0]
-            
-            # Map special keys to tkinter keysyms
-            key_upper = key.upper()
-            special_key_map = {
-                'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5', 'F6': 'F6',
-                'F7': 'F7', 'F8': 'F8', 'F9': 'F9', 'F10': 'F10', 'F11': 'F11', 'F12': 'F12',
-                'DELETE': 'Delete', 'DEL': 'Delete',
-                'INSERT': 'Insert', 'INS': 'Insert',
-                'HOME': 'Home', 'END': 'End',
-                'PAGE_UP': 'Page_Up', 'PAGEUP': 'Page_Up', 'PGUP': 'Page_Up',
-                'PAGE_DOWN': 'Page_Down', 'PAGEDOWN': 'Page_Down', 'PGDN': 'Page_Down',
-                'UP': 'Up', 'DOWN': 'Down', 'LEFT': 'Left', 'RIGHT': 'Right',
-                'TAB': 'Tab', 'ENTER': 'Return', 'RETURN': 'Return',
-                'ESCAPE': 'Escape', 'ESC': 'Escape',
-                'SPACE': 'space', 'BACKSPACE': 'BackSpace'
-            }
-            
-            # Use special key mapping if available, otherwise use key as is
-            if key_upper in special_key_map:
-                tk_key = special_key_map[key_upper]
-            else:
-                tk_key = key
-            
-            return f"<{tk_key}>"
-            
-        elif len(parts) == 2:
-            # Handle modified keys
-            modifier, key = parts
-            modifier_map = {
-                'Ctrl': 'Control',
-                'Alt': 'Alt', 
-                'Shift': 'Shift',
-                'Cmd': 'Command'
-            }
-            
-            # Map special keys to tkinter keysyms
-            key_upper = key.upper()
-            special_key_map = {
-                'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5', 'F6': 'F6',
-                'F7': 'F7', 'F8': 'F8', 'F9': 'F9', 'F10': 'F10', 'F11': 'F11', 'F12': 'F12',
-                'DELETE': 'Delete', 'DEL': 'Delete',
-                'INSERT': 'Insert', 'INS': 'Insert',
-                'HOME': 'Home', 'END': 'End',
-                'PAGE_UP': 'Page_Up', 'PAGEUP': 'Page_Up', 'PGUP': 'Page_Up',
-                'PAGE_DOWN': 'Page_Down', 'PAGEDOWN': 'Page_Down', 'PGDN': 'Page_Down',
-                'UP': 'Up', 'DOWN': 'Down', 'LEFT': 'Left', 'RIGHT': 'Right',
-                'TAB': 'Tab', 'ENTER': 'Return', 'RETURN': 'Return',
-                'ESCAPE': 'Escape', 'ESC': 'Escape',
-                'SPACE': 'space', 'BACKSPACE': 'BackSpace',
-                'PLUS': 'plus', '+': 'plus',
-                'MINUS': 'minus', '-': 'minus',
-                'EQUAL': 'equal', '=': 'equal',
-                'COMMA': 'comma', ',': 'comma',
-                'PERIOD': 'period', '.': 'period'
-            }
-            
-            tk_modifier = modifier_map.get(modifier, modifier)
-            
-            # Use special key mapping if available, otherwise use lowercase key
-            if key_upper in special_key_map:
-                tk_key = special_key_map[key_upper]
-            else:
-                tk_key = key.lower()
-            
-            return f"<{tk_modifier}-{tk_key}>"
-        
-        else:
-            return ""  # Invalid format
     
     def set_enabled(self, enabled: bool) -> None:
         """Enable or disable the menu item.
@@ -505,10 +269,6 @@ class _CDMOptionButton(customtkinter.CTkButton):
         
         self.checked = checked
         self._refresh_display()
-    
-    def _update_check_display(self) -> None:
-        """Deprecated: use _refresh_display()."""
-        self._refresh_display()
 
     def _refresh_display(self) -> None:
         """Compose and set the display text from logical text, checkmark, and accelerator."""
@@ -519,7 +279,17 @@ class _CDMOptionButton(customtkinter.CTkButton):
             base = f"{prefix}{base}"
         # Apply accelerator suffix with spacing
         if self.accelerator:
-            base = f"{base}    {self.accelerator}"
+            accel_display = self.accelerator
+            # Normalize CmdOrCtrl pseudo-modifier for platform display
+            try:
+                if sys.platform == 'darwin':
+                    accel_display = accel_display.replace('CmdOrCtrl', 'Cmd')
+                else:
+                    accel_display = accel_display.replace('CmdOrCtrl', 'Ctrl')
+            except Exception:
+                # Fallback: leave as-is if platform check fails
+                pass
+            base = f"{base}    {accel_display}"
         super().configure(text=base)
     
     def toggle_checked(self) -> None:
@@ -629,6 +399,123 @@ class _CDMSubmenuButton(_CDMOptionButton):
             # Map submenu_name to logical option text and refresh
             kwargs["option"] = kwargs.pop("submenu_name")
         super().configure(**kwargs)
+
+    def _bind_accelerator(self) -> None:
+        """Bind accelerator so it opens the full chain to this submenu.
+
+        This overrides the base binding to ensure that when the submenu's
+        accelerator is pressed, all ancestor menus are opened and this
+        submenu's dropdown is shown.
+        """
+        try:
+            targets = self._get_accel_targets()
+            target_ids = {t.winfo_id() for t in targets}
+
+            # If already bound with same key and same targets, skip
+            if getattr(self, "_accel_bound", False) and getattr(self, "_accel_key", None) == self.accelerator and getattr(self, "_accel_target_ids", None) == target_ids:
+                return
+
+            # Unregister old bindings if key or targets changed
+            if getattr(self, "_accel_bound", False) and (getattr(self, "_accel_key", None) != self.accelerator or getattr(self, "_accel_target_ids", None) != target_ids):
+                prev_targets = getattr(self, "_accel_targets", []) or []
+                for pt in prev_targets:
+                    try:
+                        _unregister_accelerator(pt, getattr(self, "_accel_key", None), self._activate_submenu_accelerator)
+                    except Exception:
+                        pass
+
+            # Register on all targets
+            for t in targets:
+                _register_accelerator(t, self.accelerator, self._activate_submenu_accelerator)
+
+            # Mark as bound
+            self._accel_bound = True
+            self._accel_key = self.accelerator
+            self._accel_targets = targets
+            self._accel_target_ids = target_ids
+
+        except Exception as e:
+            raise MenuWidgetBindingError(f"Error binding submenu accelerator {self.accelerator}: {e}") from e
+
+    def _activate_submenu_accelerator(self) -> None:
+        """Open all parent menus and show this submenu when accelerator is used."""
+        if not getattr(self, "enabled", True):
+            return
+
+        try:
+            # Build chain of ancestor submenu buttons (from immediate parent up)
+            chain_buttons = []  # from rootmost to just above self
+            # Walk up via parent menus: if a parent menu's seed is a submenu button,
+            # it means that menu is itself a submenu of a higher menu.
+            btn = self
+            top_menu = self.parent_menu
+            while True:
+                parent_menu = btn.parent_menu
+                seed = getattr(parent_menu, 'menu_seed_object', None)
+                if isinstance(seed, _CDMSubmenuButton):
+                    chain_buttons.append(seed)
+                    btn = seed
+                else:
+                    top_menu = parent_menu
+                    break
+
+            # Show the top-level menu first
+            try:
+                # Hide siblings at the bar level to avoid overlap
+                if hasattr(top_menu, '_hide_sibling_menus'):
+                    top_menu._hide_sibling_menus()
+                top_menu._show()
+                top_menu.lift()
+                top_menu.focus()
+                # Ensure geometry for proper child placement
+                try:
+                    top_menu.update_idletasks()
+                    if not top_menu.winfo_ismapped():
+                        top_menu.update()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+            # Then, for each ancestor submenu button from top to bottom, show its submenu
+            for ancestor_btn in reversed(chain_buttons):
+                try:
+                    parent = ancestor_btn.parent_menu
+                    if hasattr(parent, '_collapseSiblingSubmenus'):
+                        parent._collapseSiblingSubmenus(ancestor_btn)
+                    # Ensure geometry is up-to-date before placing submenu
+                    try:
+                        parent.update_idletasks()
+                        if not parent.winfo_ismapped():
+                            parent.update()
+                        ancestor_btn.update_idletasks()
+                    except Exception:
+                        pass
+                    ancestor_btn.submenu._show()
+                    ancestor_btn.submenu.lift()
+                except Exception:
+                    continue
+
+            # Finally, collapse siblings in our parent and show our submenu
+            try:
+                parent = self.parent_menu
+                if hasattr(parent, '_collapseSiblingSubmenus'):
+                    parent._collapseSiblingSubmenus(self)
+                try:
+                    parent.update_idletasks()
+                    if not parent.winfo_ismapped():
+                        parent.update()
+                    self.update_idletasks()
+                except Exception:
+                    pass
+                self.submenu._show()
+                self.submenu.lift()
+            except Exception:
+                pass
+
+        except Exception:
+            # Silently ignore activation errors to avoid breaking global key handling
+            return
 
 
 class CustomDropdownMenu(customtkinter.CTkFrame):
@@ -1054,6 +941,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         self._update_scrollbar_visibility()
 
     def add_submenu(self, submenu_name: str,
+                    accelerator: Optional[str] = None,
                     max_visible_options: int = None,
                     enable_scrollbar: bool = None,
                     scrollbar_width: int = None,
@@ -1063,6 +951,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
 
         Args:
             submenu_name: Name of the submenu
+            accelerator: Keyboard shortcut
             max_visible_options: Maximum number of visible options before scrollbar appears (inherits from parent if None)
             enable_scrollbar: Whether to enable scrollbar for this submenu (inherits from parent if None)
             scrollbar_width: Width of the scrollbar (inherits from parent if None)
@@ -1081,7 +970,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
 
         submenuButtonSeed = _CDMSubmenuButton(self._options_container, text=submenu_name, anchor="w",
                                               text_color=self.text_color,
-                                              width=self.width, height=self.height, **kwargs)
+                                              width=self.width, height=self.height, accelerator=accelerator,
+                                              **kwargs)
         submenuButtonSeed.setParentMenu(self)
         self._options_list.append(submenuButtonSeed)
         self._configureButton(submenuButtonSeed)
@@ -1185,11 +1075,37 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                                     submenu._timer_id = None
                             except Exception:
                                 pass
+                            # Ensure submenu cleans its own accelerators/options first
+                            try:
+                                if hasattr(option.submenu, 'clean'):
+                                    option.submenu.clean()
+                            except Exception:
+                                pass
                             # Now it is safe to destroy the submenu
                             try:
                                 option.submenu.destroy()
                             except Exception:
                                 pass
+
+                        # Unregister accelerators bound by this option before destroying it
+                        try:
+                            if getattr(option, "_accel_bound", False):
+                                cb = option._activate_submenu_accelerator if isinstance(option, _CDMSubmenuButton) else getattr(option, "_execute_if_enabled", None)
+                                key = getattr(option, "_accel_key", None)
+                                targets = getattr(option, "_accel_targets", None)
+                                if targets is None:
+                                    try:
+                                        targets = option._get_accel_targets()
+                                    except Exception:
+                                        targets = []
+                                if key and cb and targets:
+                                    for pt in targets:
+                                        try:
+                                            _unregister_accelerator(pt, key, cb)
+                                        except Exception:
+                                            pass
+                        except Exception:
+                            pass
 
                         # Disable and destroy the button widget itself
                         try:
@@ -1238,7 +1154,33 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         # Destroy option widgets and any attached submenus
         for option in self._options_list[:]:
             try:
+                # Unregister accelerators bound by this option before destroying it
+                try:
+                    if getattr(option, "_accel_bound", False):
+                        cb = option._activate_submenu_accelerator if isinstance(option, _CDMSubmenuButton) else getattr(option, "_execute_if_enabled", None)
+                        key = getattr(option, "_accel_key", None)
+                        targets = getattr(option, "_accel_targets", None)
+                        if targets is None:
+                            try:
+                                targets = option._get_accel_targets()
+                            except Exception:
+                                targets = []
+                        if key and cb and targets:
+                            for pt in targets:
+                                try:
+                                    _unregister_accelerator(pt, key, cb)
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+
                 if isinstance(option, _CDMSubmenuButton) and hasattr(option, 'submenu') and option.submenu:
+                    # Ensure child submenu unregisters its accelerators/options first
+                    try:
+                        if hasattr(option.submenu, 'clean'):
+                            option.submenu.clean()
+                    except Exception:
+                        pass
                     try:
                         option.submenu.destroy()
                     except Exception:
@@ -1313,7 +1255,17 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         # Remove the runtime accelerator suffix that is added as "    <accel>"
         accel = getattr(option_widget, 'accelerator', None)
         if accel and isinstance(text, str):
-            expected_suffix = f"    {accel}"
+            # Match the display mapping performed in _refresh_display
+            accel_display = accel
+            try:
+                import sys
+                if sys.platform == 'darwin':
+                    accel_display = accel_display.replace('CmdOrCtrl', 'Cmd')
+                else:
+                    accel_display = accel_display.replace('CmdOrCtrl', 'Ctrl')
+            except Exception:
+                pass
+            expected_suffix = f"    {accel_display}"
             if text.endswith(expected_suffix):
                 text = text[: -len(expected_suffix)]
 
@@ -1337,8 +1289,14 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         Args:
             dpi: Display DPI scaling factor
         """
-        button_x, button_y, button_width = self._get_submenu_button_position()
         parent_menu = self.menu_seed_object.parent_menu
+        # Ensure geometry info is current before computing relative positions
+        try:
+            self.menu_seed_object.update_idletasks()
+            parent_menu.update_idletasks()
+        except Exception:
+            pass
+        button_x, button_y, button_width = self._get_submenu_button_position()
         
         self.place(
             in_=parent_menu,
@@ -1483,8 +1441,10 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
 
     def _hide_sibling_menus(self) -> None:
         """Hide sibling menus in menu bar or title menu context."""
-        widget_base = self.menu_seed_object.master.winfo_name()
-        if widget_base.startswith("!ctktitlemenu") or widget_base.startswith("!ctkmenubar"):
+        widget_base = self.menu_seed_object.master
+        from .title_menu_win import CTkTitleMenu
+        from .menu_bar import CTkMenuBar
+        if isinstance(widget_base, CTkTitleMenu) or isinstance(widget_base, CTkMenuBar):
             for menu in self.menu_seed_object.master.menu:
                 if menu != self:
                     menu._hide()
@@ -2143,6 +2103,12 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             # Mark as destroyed early so late event callbacks no-op safely
             try:
                 self._is_destroyed = True
+            except Exception:
+                pass
+
+            # First perform a full logical cleanup to unregister accelerators and destroy children
+            try:
+                self.clean()
             except Exception:
                 pass
 

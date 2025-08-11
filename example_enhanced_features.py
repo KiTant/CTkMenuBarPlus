@@ -66,9 +66,10 @@ class EnhancedMenuBarDemo:
         self.file_menu = CustomDropdownMenu(widget=file_button)
         
         # File operations with function keys
-        self.file_menu.add_option("New File", self.new_file, accelerator="Ctrl+N", icon="file-down.png")
-        self.file_menu.add_option("Open File", self.open_file, accelerator="Ctrl+O")
-        self.file_menu.add_option("Save", self.save_file, accelerator="Ctrl+S")
+        self.file_menu.add_option("New File", self.new_file, accelerator="CmdOrCtrl+N", icon="file-down.png")
+        self.file_menu.add_option("Open File", self.open_file, accelerator="CmdOrCtrl+O")
+        self.file_menu.add_option("Save", self.save_file, accelerator="CmdOrCtrl+S")
+        self.file_menu.add_option("Save as", self.save_file, accelerator="CmdOrCtrl+Shift+S")
         self.file_menu.add_separator()
         
         # Recent files submenu
@@ -93,8 +94,8 @@ class EnhancedMenuBarDemo:
         edit_button = self.menu_bar.add_cascade("✏️ Edit")
         self.edit_menu = CustomDropdownMenu(widget=edit_button)
         
-        self.edit_menu.add_option("Undo", self.undo_action, accelerator="Ctrl+Z")
-        self.edit_menu.add_option("Redo", self.redo_action, accelerator="Ctrl+Y")
+        self.edit_menu.add_option("Undo", self.undo_action, accelerator="CmdOrCtrl+Z")
+        self.edit_menu.add_option("Redo", self.redo_action, accelerator="CmdOrCtrl+Y")
         self.edit_menu.add_separator()
         
         self.edit_menu.add_option("Cut", self.cut_text)
@@ -103,11 +104,11 @@ class EnhancedMenuBarDemo:
         self.edit_menu.add_separator()
         
         self.edit_menu.add_option("Select All", self.select_all_text)
-        self.edit_menu.add_option("Find", self.find_text, accelerator="Ctrl+F")
+        self.edit_menu.add_option("Find", self.find_text, accelerator="CmdOrCtrl+F")
         
         # Advanced editing submenu
-        advanced_submenu = self.edit_menu.add_submenu("Advanced")
-        advanced_submenu.add_option("Duplicate Line", self.action_demo, accelerator="Ctrl+D")
+        advanced_submenu = self.edit_menu.add_submenu("Advanced", accelerator="F7")
+        advanced_submenu.add_option("Duplicate Line", self.action_demo, accelerator="CmdOrCtrl+D")
         advanced_submenu.add_option("Delete Line", self.action_demo, accelerator="Alt+Delete")
         advanced_submenu.add_option("Move Line Up", self.action_demo, accelerator="Alt+Up")
         
@@ -136,9 +137,9 @@ class EnhancedMenuBarDemo:
         
         # Zoom controls
         zoom_submenu = self.view_menu.add_submenu("Zoom")
-        zoom_submenu.add_option("Zoom In", self.zoom_in, accelerator="Ctrl+Plus")
-        zoom_submenu.add_option("Zoom Out", self.zoom_out, accelerator="Ctrl+Minus")
-        zoom_submenu.add_option("Reset Zoom", self.reset_zoom, accelerator="Ctrl+0")
+        zoom_submenu.add_option("Zoom In", self.zoom_in, accelerator="CmdOrCtrl+Plus")
+        zoom_submenu.add_option("Zoom Out", self.zoom_out, accelerator="CmdOrCtrl+Minus")
+        zoom_submenu.add_option("Reset Zoom", self.reset_zoom, accelerator="CmdOrCtrl+0")
         
         self.view_menu.add_separator()
 
@@ -208,29 +209,31 @@ class EnhancedMenuBarDemo:
         sample_text = """CTkMenuBarPlus Demo - Complete Feature Showcase
 
 🗂️ File Operations:
-   Ctrl+N        - New File
-   Ctrl+O        - Open File  
-   Ctrl+S        - Save File
-   Alt+F4        - Exit Application
+   CmdOrCtrl+N        - New File
+   CmdOrCtrl+O        - Open File  
+   CmdOrCtrl+S        - Save File
+   CmdOrCtrl+Shift+S  - Save as
+   Alt+F4             - Exit Application
 
 ✏️ Edit Operations:
-   Ctrl+Z        - Undo
-   Ctrl+Y        - Redo
-   Ctrl+X        - Cut
-   Ctrl+C        - Copy
-   Ctrl+V        - Paste
-   Ctrl+A        - Select All
-   Ctrl+F        - Find
-   Ctrl+D        - Duplicate Line
-   Alt+Delete  - Delete Line
-   Alt+Up        - Move Line Up
+   CmdOrCtrl+Z        - Undo
+   CmdOrCtrl+Y        - Redo
+   CmdOrCtrl+X        - Cut
+   CmdOrCtrl+C        - Copy
+   CmdOrCtrl+V        - Paste
+   CmdOrCtrl+A        - Select All
+   CmdOrCtrl+F        - Find
+   CmdOrCtrl+D        - Duplicate Line
+   Alt+Delete         - Delete Line
+   Alt+Up             - Move Line Up
+   F7                 - Advanced
 
 👁️ View Controls:
-   Ctrl+Plus     - Zoom In
-   Ctrl+Minus    - Zoom Out
-   Ctrl+0        - Reset Zoom
-   F11           - Full Screen
-   F9            - Always on Top
+   CmdOrCtrl+Plus     - Zoom In
+   CmdOrCtrl+Minus    - Zoom Out
+   CmdOrCtrl+0        - Reset Zoom
+   F11                - Full Screen
+   F9                 - Always on Top
 
 🔧 Tools & Function Keys:
    F1            - Help Documentation
@@ -276,24 +279,24 @@ class EnhancedMenuBarDemo:
         self.context_menu.add_option(
             option="Cut",
             command=self.cut_text,
-            accelerator="Ctrl+X"
+            accelerator="CmdOrCtrl+X"
         )
         self.context_menu.add_option(
             option="Copy",
             command=self.copy_text,
-            accelerator="Ctrl+C"
+            accelerator="CmdOrCtrl+C"
         )
         self.context_menu.add_option(
             option="Paste",
             command=self.paste_text,
-            accelerator="Ctrl+V"
+            accelerator="CmdOrCtrl+V"
         )
         self.context_menu.add_separator()
         
         self.context_menu.add_option(
             option="Select All",
             command=self.select_all_text,
-            accelerator="Ctrl+A"
+            accelerator="CmdOrCtrl+A"
         )
         
         self.context_menu.add_separator()
