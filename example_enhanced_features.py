@@ -73,7 +73,7 @@ class EnhancedMenuBarDemo:
         self.file_menu.add_separator()
         
         # Recent files submenu
-        recent_submenu = self.file_menu.add_submenu("Recent Files")
+        recent_submenu = self.file_menu.add_submenu("Recent Files", icon="file-down.png", icon_size=32)
         recent_submenu.add_option("example1.txt", lambda: self.show_info("Recent", "example1.txt"))
         recent_submenu.add_option("project.py", lambda: self.show_info("Recent", "project.py"))
         recent_submenu.add_option("notes.md", lambda: self.show_info("Recent", "notes.md"))
@@ -274,7 +274,7 @@ class EnhancedMenuBarDemo:
     
     def setup_context_menus(self):
         """Setup context menu for the text area."""
-        self.context_menu = ContextMenu(self.text_area)
+        self.context_menu = ContextMenu(self.text_area, scale=0.9)
         
         self.context_menu.add_option(
             option="Cut",

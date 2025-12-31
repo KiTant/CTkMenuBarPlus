@@ -12,7 +12,7 @@ Original Author: LucianoSaldivia | https://github.com/LucianoSaldivia
 CTkMenuBar Author: Akash Bora (Akascape) | https://github.com/Akascape
 Enhanced Features: xzyqox (KiTant) | https://github.com/KiTant
 
-Version: Enhanced Edition 1.1
+Version: Enhanced Edition 1.2
 """
 
 from __future__ import annotations
@@ -112,6 +112,7 @@ class _CDMOptionButton(customtkinter.CTkButton):
         Args:
             accelerator: Keyboard shortcut (e.g., "Ctrl+O")
             icon: Path to icon file or PIL Image object
+            icon_size: Size (px) to render icon at; defaults to menu's scaled icon size
             checkable: Whether this item can be checked/unchecked
             checked: Initial checked state
             enabled: Whether the item is initially enabled
@@ -120,6 +121,8 @@ class _CDMOptionButton(customtkinter.CTkButton):
         # Extract and store custom parameters
         self.accelerator = kwargs.pop('accelerator', None)
         self.icon = kwargs.pop('icon', None)
+        self.icon_size = kwargs.pop('icon_size', DEFAULT_ICON_SIZE)
+        self.base_icon_size = self.icon_size
         self.checkable = kwargs.pop('checkable', False)
         self.checked = kwargs.pop('checked', False)
         self.enabled = kwargs.pop('enabled', True)
@@ -141,8 +144,6 @@ class _CDMOptionButton(customtkinter.CTkButton):
     
     def _setup_features(self) -> None:
         """Setup all enhanced features (icon, accelerator, checkable state)."""
-        if self.icon:
-            self._setup_icon()
         if self.accelerator:
             self._setup_accelerator_display()
         if self.checkable:
@@ -156,13 +157,14 @@ class _CDMOptionButton(customtkinter.CTkButton):
                 image = PIL.Image.open(self.icon)
             else:
                 image = self.icon
-            
-            # Resize to standard icon size
-            image = image.resize((DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE), PIL.Image.Resampling.LANCZOS)
+            self.icon_size = max(8, round(self.base_icon_size * self.parent_menu.cget("scale")))
+            # Resize to configured icon size
+            size = self.icon_size
+            image = image.resize((size, size), PIL.Image.Resampling.LANCZOS)
             self.icon_image = customtkinter.CTkImage(
                 light_image=image, 
                 dark_image=image, 
-                size=(DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE)
+                size=(size, size)
             )
             self.configure(image=self.icon_image)
             
@@ -200,7 +202,9 @@ class _CDMOptionButton(customtkinter.CTkButton):
             menu: The parent dropdown menu
         """
         self.parent_menu = menu
-        
+
+        if self.icon:
+            self._setup_icon()
         if self.accelerator:
             self._bind_accelerator()
     
@@ -313,7 +317,9 @@ class _CDMOptionButton(customtkinter.CTkButton):
             "enabled": lambda: self.enabled,
             "checked": lambda: self.checked,
             "checkable": lambda: self.checkable,
-            "icon": lambda: self.icon
+            "icon": lambda: self.icon,
+            "scaled_icon_size": lambda: self.icon_size,
+            "icon_size": lambda: self.base_icon_size
         }
         
         if param in custom_params:
@@ -334,7 +340,8 @@ class _CDMOptionButton(customtkinter.CTkButton):
             "enabled": self.set_enabled,
             "checked": self.set_checked,
             "checkable": self._handle_checkable_config,
-            "icon": self._handle_icon_config
+            "icon": self._handle_icon_config,
+            "icon_size": self._handle_icon_size_config,
         }
         
         # Treat plain text updates as logical text updates to preserve decorations
@@ -370,6 +377,12 @@ class _CDMOptionButton(customtkinter.CTkButton):
     def _handle_icon_config(self, value: Union[str, PIL.Image.Image]) -> None:
         """Handle icon configuration change."""
         self.icon = value
+        if value:
+            self._setup_icon()
+
+    def _handle_icon_size_config(self, value: int) -> None:
+        """Handle icon configuration change."""
+        self.base_icon_size = value
         if value:
             self._setup_icon()
 
@@ -541,6 +554,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                  max_visible_options: int = DEFAULT_MAX_VISIBLE_OPTIONS,
                  enable_scrollbar: bool = True,
                  scrollbar_width: int = SCROLLBAR_WIDTH,
+                 scale: float = 1.0,
                  **kwargs):
         """Initialize the dropdown menu with enhanced features.
         
@@ -564,6 +578,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             max_visible_options: Max options before scrollbar appears
             enable_scrollbar: Whether to enable scrollbar
             scrollbar_width: Width of the scrollbar
+            scale: Single number to uniformly scale the dropdown and its options
             **kwargs: Additional arguments passed to CTkFrame
         """
         # Setup master and bindings based on widget type
@@ -583,11 +598,13 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             widget, master, border_width, width, height, bg_color, 
             corner_radius, border_color, separator_color, text_color, 
             fg_color, hover_color, font, padx, pady, cursor, 
-            max_visible_options, enable_scrollbar, scrollbar_width
+            max_visible_options, enable_scrollbar, scrollbar_width, scale
         )
         
         # Initialize menu state and components
         self._initialize_menu_state()
+        # Apply initial scaling
+        self._apply_scale()
         self._setup_menu_widget()
     
     def _setup_master_and_bindings(self, widget: WidgetType, master: any) -> any:
@@ -671,7 +688,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
     def _store_configuration(self, widget, master, border_width, width, height, bg_color, 
                            corner_radius, border_color, separator_color, text_color, 
                            fg_color, hover_color, font, padx, pady, cursor, 
-                           max_visible_options, enable_scrollbar, scrollbar_width):
+                           max_visible_options, enable_scrollbar, scrollbar_width, scale):
         """Store all configuration parameters as instance variables."""
         # Core widget references
         self.menu_seed_object = widget
@@ -679,26 +696,146 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         
         # Visual configuration
         self.border_color = border_color
-        self.border_width = border_width
+        self._base_border_width = border_width
         self.bg_color = bg_color
-        self.corner_radius = corner_radius
+        self._base_corner_radius = corner_radius
         self.fg_color = fg_color
         self.text_color = text_color
         self.hover_color = hover_color
-        self.font = font
+        self._base_font = font
         self.separator_color = separator_color
         
         # Layout configuration
-        self.height = height
-        self.width = width
-        self.padx = padx
-        self.pady = pady
+        self._base_height = height
+        self._base_width = width
+        self._base_padx = padx
+        self._base_pady = pady
+        # Effective (scaled) values will be computed in _apply_scale
         self.cursor = cursor
         
         # Scrollbar configuration
         self.max_visible_options = max_visible_options
         self.enable_scrollbar = enable_scrollbar
-        self.scrollbar_width = scrollbar_width
+        self._base_scrollbar_width = scrollbar_width
+
+        # Scaling
+        try:
+            self.scale = float(scale)
+        except Exception:
+            self.scale = 1.0
+        if self.scale <= 0:
+            self.scale = 1.0
+
+        # Derived values placeholders
+        self.icon_size = DEFAULT_ICON_SIZE
+        self._scaled_padding = DEFAULT_PADDING
+
+    def _scaled_font_from_base(self):
+        """Create a scaled font tuple from the base font specification."""
+        base = self._base_font
+        try:
+            # customtkinter.CTkFont or tkinter.font.Font
+            import tkinter.font as tkFont
+            if isinstance(base, (customtkinter.CTkFont, tkFont.Font)):
+                family = base.cget("family") if hasattr(base, "cget") else None
+                size = base.cget("size") if hasattr(base, "cget") else 12
+                try:
+                    weight = base.cget("weight") if hasattr(base, "cget") else "normal"
+                except Exception:
+                    weight = "normal"
+                try:
+                    slant = base.cget("slant") if hasattr(base, "cget") else "roman"
+                except Exception:
+                    slant = "roman"
+                try:
+                    underline = base.cget("underline") if hasattr(base, "cget") else 0
+                except Exception:
+                    underline = 0
+                try:
+                    overstrike = base.cget("overstrike") if hasattr(base, "cget") else 0
+                except Exception:
+                    overstrike = 0
+                scaled_size = max(1, int(round(size * self.scale)))
+                # Return a simple tuple; CTk widgets accept tuples.
+                return (family, scaled_size, weight)
+        except Exception:
+            pass
+        # Tuple or other spec
+        if isinstance(base, (tuple, list)):
+            try:
+                family = base[0]
+                size = base[1] if len(base) > 1 else 12
+                style = base[2] if len(base) > 2 else None
+                scaled_size = max(1, int(round(size * self.scale)))
+                return (family, scaled_size) if style is None else (family, scaled_size, style)
+            except Exception:
+                return ("helvetica", max(1, int(round(12 * self.scale))))
+        # Fallback
+        return ("helvetica", max(1, int(round(12 * self.scale))))
+
+    def _apply_scale(self) -> None:
+        """Apply current scale to all size-related properties and re-layout children."""
+        # Compute scaled values from base
+        self.height = max(1, int(round(self._base_height * self.scale)))
+        self.width = max(1, int(round(self._base_width * self.scale)))
+        self.padx = int(round(self._base_padx * self.scale))
+        self.pady = int(round(self._base_pady * self.scale))
+        self.corner_radius = max(0, int(round(self._base_corner_radius * self.scale)))
+        self.border_width = max(0, int(round(self._base_border_width * self.scale)))
+        self.scrollbar_width = max(1, int(round(self._base_scrollbar_width * self.scale)))
+        self.icon_size = max(8, int(round(DEFAULT_ICON_SIZE * self.scale)))
+        self._scaled_padding = max(0, int(round(DEFAULT_PADDING * self.scale)))
+        self.font = self._scaled_font_from_base()
+
+        # Apply to self frame
+        try:
+            super().configure(border_width=self.border_width, corner_radius=self.corner_radius)
+        except Exception:
+            pass
+
+        # Rebuild scrollable frame if present (to apply width/height/scrollbar changes)
+        if getattr(self, "_scrollable_frame", None) is not None:
+            try:
+                self._destroy_scrollable_frame()
+            except Exception:
+                pass
+            try:
+                self._create_scrollable_frame()
+            except Exception:
+                pass
+        else:
+            # Update existing option buttons directly
+            for opt in list(getattr(self, "_options_list", [])):
+                try:
+                    # Width/height
+                    opt.configure(width=self.width, height=self.height, font=self.font)
+                    # Icon resizing if present
+                    if getattr(opt, "icon", None):
+                            opt._setup_icon()
+                    # Update pack paddings
+                    try:
+                        opt.pack_configure(
+                            padx=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
+                            pady=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
+                        )
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+        # Update separator frames height
+        try:
+            for child in list(self.winfo_children()):
+                # Skip CTkScrollableFrame container itself
+                if isinstance(child, getattr(customtkinter, 'CTkScrollableFrame', ())):
+                    continue
+                if isinstance(child, customtkinter.CTkFrame):
+                    try:
+                        child.configure(height=max(1, int(round(2 * self.scale))))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     
     def _initialize_menu_state(self):
         """Initialize menu state variables and containers."""
@@ -738,6 +875,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                    command: Optional[Callable] = None,
                    accelerator: Optional[str] = None,
                    icon: Optional[Union[str, PIL.Image.Image]] = None,
+                   icon_size: Optional[int] = None,
                    checkable: bool = False,
                    checked: bool = False,
                    enabled: bool = True,
@@ -749,6 +887,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             command: The function to call when this option is selected
             accelerator: Keyboard shortcut (e.g., "Ctrl+O", "Alt+F4")
             icon: Path to icon file or PIL Image object
+            icon_size: Size (px) to render icon at; defaults to menu's scaled icon size
             checkable: Whether this item can be checked/unchecked
             checked: Initial checked state
             enabled: Whether the item is initially enabled
@@ -762,12 +901,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         """
         # Validate input parameters
         self._validate_option_input(option)
-        
-        # Store original command for checkable items
-        original_command = command
-        
-        # Process command (but keep original for checkable items)
-        processed_command = self._process_option_command(command, checkable)
+
+        command = self._dummy_command if not command else command
         
         # Check for duplicate accelerators
         if accelerator and self._has_duplicate_accelerator(accelerator, option):
@@ -775,12 +910,12 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         
         # Create and configure the option button
         option_button = self._create_option_button(
-            option, processed_command, accelerator, icon, checkable, checked, enabled, **kwargs
+            option, command, accelerator, icon, icon_size, checkable, checked, enabled, **kwargs
         )
         
-        # Set up checkable command wrapper if needed (using original command)
-        if checkable and original_command and original_command != self._dummy_command:
-            self._setup_checkable_command(option_button, original_command)
+        # Set up checkable command wrapper if needed
+        if checkable:
+            self._setup_checkable_command(option_button, command)
         
         # Add to menu and update display
         self._add_option_to_menu(option_button)
@@ -798,22 +933,6 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         """
         if not option or not isinstance(option, str):
             raise ValueError("Option text must be a non-empty string")
-    
-    def _process_option_command(self, command: Optional[Callable], checkable: bool) -> Callable:
-        """Process and wrap the command for checkable items.
-        
-        Args:
-            command: The original command
-            checkable: Whether the item is checkable
-            
-        Returns:
-            The processed command
-        """
-        if command is None:
-            return self._dummy_command
-        
-        # For checkable items, return the original command - it will be wrapped later
-        return command
     
     def _has_duplicate_accelerator(self, accelerator: str, option: str) -> bool:
         """Check if accelerator is already in use.
@@ -850,6 +969,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                               option: str, command: Callable,
                               accelerator: Optional[str],
                               icon: Optional[Union[str, PIL.Image.Image]],
+                              icon_size: Optional[int],
                               checkable: bool,
                               checked: bool,
                               enabled: bool, **kwargs) -> _CDMOptionButton:
@@ -860,6 +980,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             command: Command to execute
             accelerator: Keyboard shortcut
             icon: Icon for the option
+            icon_size: Icon size for the icon
             checkable: Whether item is checkable
             checked: Initial checked state
             enabled: Whether item is enabled
@@ -878,6 +999,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             command=partial(self.selectOption, command),
             accelerator=accelerator,
             icon=icon,
+            icon_size=icon_size or self.icon_size,
             checkable=checkable,
             checked=checked,
             enabled=enabled,
@@ -927,9 +1049,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             side="top",
             fill="both",
             expand=True,
-            # Dynamic padding: base padding + corner radius scaling factor
-            padx=DEFAULT_PADDING+(self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR),
-            pady=DEFAULT_PADDING+(self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)
+            # Dynamic padding: scaled base padding + corner radius scaling factor
+            padx=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR),
+            pady=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)
         )
         
         # Add submenu hover binding if this is a submenu
@@ -941,6 +1063,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         self._update_scrollbar_visibility()
 
     def add_submenu(self, submenu_name: str,
+                    icon: Optional[Union[str, PIL.Image.Image]] = None,
+                    icon_size: Optional[int] = None,
                     accelerator: Optional[str] = None,
                     max_visible_options: int = None,
                     enable_scrollbar: bool = None,
@@ -951,6 +1075,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
 
         Args:
             submenu_name: Name of the submenu
+            icon: Path to icon file or PIL Image object
+            icon_size: Size (px) to render icon at; defaults to menu's scaled icon size
             accelerator: Keyboard shortcut
             max_visible_options: Maximum number of visible options before scrollbar appears (inherits from parent if None)
             enable_scrollbar: Whether to enable scrollbar for this submenu (inherits from parent if None)
@@ -966,33 +1092,40 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         if enable_scrollbar is None:
             enable_scrollbar = kwargs.pop('enable_scrollbar', self.enable_scrollbar)
         if scrollbar_width is None:
-            scrollbar_width = kwargs.pop('scrollbar_width', self.scrollbar_width)
+            # Use parent's BASE scrollbar width to avoid double scaling in submenu
+            scrollbar_width = kwargs.pop('scrollbar_width', self._base_scrollbar_width)
 
         submenuButtonSeed = _CDMSubmenuButton(self._options_container, text=submenu_name, anchor="w",
                                               text_color=self.text_color,
                                               width=self.width, height=self.height, accelerator=accelerator,
+                                              icon=icon, icon_size=icon_size or self.icon_size,
                                               **kwargs)
         submenuButtonSeed.setParentMenu(self)
         self._options_list.append(submenuButtonSeed)
         self._configureButton(submenuButtonSeed)
 
+        # IMPORTANT: pass BASE (unscaled) values to the submenu so it applies the SAME scale
+        # and does not get scaled twice relative to the parent.
         submenu = CustomDropdownMenu(
             master=self.master,
-            height=self.height,
-            width=self.width,
+            height=self._base_height,
+            width=self._base_width,
             widget=submenuButtonSeed,
             fg_color=self.fg_color,
             bg_color=self.bg_color,
             hover_color=self.hover_color,
-            corner_radius=self.corner_radius,
-            border_width=self.border_width,
+            corner_radius=self._base_corner_radius,
+            border_width=self._base_border_width,
             border_color=self.border_color,
             separator_color=self.separator_color,
             text_color=self.text_color,
-            font=self.font,
+            font=self._base_font,
+            padx=self._base_padx,
+            pady=self._base_pady,
             max_visible_options=max_visible_options,
             enable_scrollbar=enable_scrollbar,
-            scrollbar_width=scrollbar_width)
+            scrollbar_width=scrollbar_width,
+            scale=self.scale)
 
         submenuButtonSeed.setSubmenu(submenu=submenu)
         submenuButtonSeed.configure(command=submenu.toggleShow)
@@ -1006,8 +1139,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             side="top",
             fill="both",
             expand=True,
-            padx=DEFAULT_PADDING + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
-            pady=DEFAULT_PADDING + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
+            padx=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
+            pady=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
         )
 
         self._setup_submenu_timers(submenuButtonSeed, submenu)
@@ -1020,7 +1153,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
     def add_separator(self) -> None:
         separator = customtkinter.CTkFrame(
             master=self,
-            height=2,
+            height=max(1, int(round(2 * getattr(self, 'scale', 1.0)))) ,
             width=self.width,
             fg_color=self.separator_color,
             border_width=0
@@ -1377,7 +1510,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         
         return button_x + frame_x, button_y + frame_y
 
-    def _hide(self, *args, **kwargs) -> None:
+    def _hide(self) -> None:
         """Hide the dropdown menu and cancel any pending timers."""
         self._cancel_pending_timer()
         self.place_forget()
@@ -1391,19 +1524,19 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 pass
             self._timer_id = None
 
-    def _hideParentMenus(self, *args, **kwargs) -> None:
+    def _hideParentMenus(self) -> None:
         """Hide all parent menus in the hierarchy."""
         if isinstance(self.menu_seed_object, _CDMSubmenuButton):
             parent_menu = self.menu_seed_object.parent_menu
             parent_menu._hideParentMenus()
             parent_menu._hide()
 
-    def _hideChildrenMenus(self, *args, **kwargs) -> None:
+    def _hideChildrenMenus(self) -> None:
         """Hide all child submenus."""
         for submenu in self._get_submenus():
             submenu._hide()
 
-    def _hideAllMenus(self, *args, **kwargs) -> None:
+    def _hideAllMenus(self) -> None:
         """Hide all menus in the hierarchy and clean up timers."""
         self._cleanup_submenu_timers()
         self._hideChildrenMenus()
@@ -1421,7 +1554,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 option.submenu._hideChildrenMenus()
                 option.submenu._hide()
 
-    def toggleShow(self, *args, **kwargs) -> None:
+    def toggleShow(self) -> None:
         """Toggle the visibility of the dropdown menu.
         
         This method shows the menu if it's hidden, or hides it if it's visible.
@@ -1631,21 +1764,22 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         # Mapping of parameter names to their handlers
         param_handlers = {
             "hover_color": lambda v: setattr(self, 'hover_color', v),
-            "font": lambda v: setattr(self, 'font', v),
+            "font": self._handle_font,
             "text_color": lambda v: setattr(self, 'text_color', v),
             "bg_color": self._handle_bg_color,
             "fg_color": lambda v: setattr(self, 'fg_color', v),
             "border_color": self._handle_border_color,
             "border_width": self._handle_border_width,
             "corner_radius": self._handle_corner_radius,
-            "height": lambda v: setattr(self, 'height', v),
-            "width": lambda v: setattr(self, 'width', v),
+            "height": self._handle_height,
+            "width": self._handle_width,
             "separator_color": self._handle_separator_color,
-            "padx": lambda v: setattr(self, 'padx', v),
-            "pady": lambda v: setattr(self, 'pady', v),
+            "padx": self._handle_padx,
+            "pady": self._handle_pady,
             "max_visible_options": self._handle_max_visible_options,
             "enable_scrollbar": self._handle_enable_scrollbar,
-            "scrollbar_width": self._handle_scrollbar_width
+            "scrollbar_width": self._handle_scrollbar_width,
+            "scale": self._handle_scale
         }
 
         # Process each parameter
@@ -1672,11 +1806,19 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
     def _handle_border_width(self, value):
         """Handle border_width configuration."""
         self.border_width = value
+        try:
+            self._base_border_width = float(value) / float(self.scale)
+        except Exception:
+            self._base_border_width = value
         super().configure(border_width=value)
 
     def _handle_corner_radius(self, value):
         """Handle corner_radius configuration."""
         self.corner_radius = value
+        try:
+            self._base_corner_radius = float(value) / float(self.scale)
+        except Exception:
+            self._base_corner_radius = value
         super().configure(corner_radius=value)
 
     def _handle_separator_color(self, value):
@@ -1685,6 +1827,41 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         for child in self.winfo_children():
             if isinstance(child, customtkinter.CTkFrame):
                 child.configure(fg_color=value)
+
+    def _handle_height(self, value):
+        """Handle height configuration, maintaining base for future scaling."""
+        self.height = value
+        try:
+            self._base_height = float(value) / float(self.scale)
+        except Exception:
+            self._base_height = value
+        # Update existing items to reflect new absolute change
+        self._apply_scale()
+
+    def _handle_width(self, value):
+        """Handle width configuration, maintaining base for future scaling."""
+        self.width = value
+        try:
+            self._base_width = float(value) / float(self.scale)
+        except Exception:
+            self._base_width = value
+        self._apply_scale()
+
+    def _handle_padx(self, value):
+        self.padx = value
+        try:
+            self._base_padx = float(value) / float(self.scale)
+        except Exception:
+            self._base_padx = value
+        self._apply_scale()
+
+    def _handle_pady(self, value):
+        self.pady = value
+        try:
+            self._base_pady = float(value) / float(self.scale)
+        except Exception:
+            self._base_pady = value
+        self._apply_scale()
 
     def _handle_max_visible_options(self, value):
         """Handle max_visible_options configuration."""
@@ -1702,10 +1879,48 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             self.scrollbar_width = int(value)
         except Exception:
             self.scrollbar_width = value
+        try:
+            self._base_scrollbar_width = float(value) / float(self.scale)
+        except Exception:
+            self._base_scrollbar_width = value
         # If a scrollable frame is active, rebuild it to apply new width
         if getattr(self, "_scrollable_frame", None) is not None:
             self._destroy_scrollable_frame()
             self._create_scrollable_frame()
+
+    def _handle_font(self, value):
+        """Handle font configuration, maintain base and reapply scaling."""
+        self._base_font = value
+        self.font = self._scaled_font_from_base()
+        # Apply to existing options
+        try:
+            for opt in list(self._options_list):
+                try:
+                    opt.configure(font=self.font)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _handle_scale(self, value):
+        """Handle scale updates across the entire menu tree."""
+        try:
+            self.scale = float(value)
+        except Exception:
+            return
+        if self.scale <= 0:
+            self.scale = 1.0
+        # Apply to self
+        self._apply_scale()
+        # Propagate to submenus
+        try:
+            for submenu in self._get_submenus():
+                try:
+                    submenu.configure(scale=self.scale)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def cget(self, param: str):
         """Get configuration parameter value."""
@@ -1724,7 +1939,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             "pady": self.pady,
             "max_visible_options": self.max_visible_options,
             "enable_scrollbar": self.enable_scrollbar,
-            "scrollbar_width": self.scrollbar_width
+            "scrollbar_width": self.scrollbar_width,
+            "scale": self.scale
         }
 
         if param in param_mapping:
@@ -1762,7 +1978,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             return
 
         # Calculate the height for the scrollable area
-        option_height = self.height + (2 * (DEFAULT_PADDING + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)))
+        option_height = self.height + (2 * (self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)))
         max_height = option_height * self.max_visible_options
 
         # Calculate maximum required width for all options
@@ -1841,6 +2057,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     options_data.append({
                         'type': 'submenu',
                         'text': option.cget('option'),
+                        'accelerator': option.cget('accelerator'),
+                        'icon': option.cget('icon'),
+                        'icon_size': option.cget('icon_size'),
                         'submenu': option.submenu
                     })
                 else:
@@ -1849,11 +2068,12 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                         'type': 'option',
                         'text': original_text,
                         'command': option.cget('command'),
-                        'accelerator': getattr(option, 'accelerator', None),
-                        'icon': getattr(option, 'icon', None),
-                        'checkable': getattr(option, 'checkable', False),
-                        'checked': getattr(option, 'checked', False),
-                        'enabled': getattr(option, 'enabled', True)
+                        'accelerator': option.cget('accelerator'),
+                        'icon': option.cget('icon'),
+                        'icon_size': option.cget('icon_size'),
+                        'checkable': option.cget('checkable'),
+                        'checked': option.cget('checked'),
+                        'enabled': option.cget('enabled')
                     })
             except Exception as e:
                 # Issue warning but continue processing other options
@@ -1883,6 +2103,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     text=data['text'],
                     anchor="w",
                     text_color=self.text_color,
+                    accelerator=data['accelerator'],
+                    icon=data['icon'],
+                    icon_size=data['icon_size'],
                     width=button_width,
                     height=self.height
                 )
@@ -1903,34 +2126,27 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     side="top",
                     fill="both",
                     expand=True,
-                    padx=DEFAULT_PADDING + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
-                    pady=DEFAULT_PADDING + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
+                    padx=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
+                    pady=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
                 )
 
                 self._setup_submenu_timers(submenuButtonSeed, submenu)
             else:
                 # Recreate option button
-                option_text = data['text']  
-                command = data['command']
-                accelerator = data['accelerator']
-                icon = data['icon']
-                checkable = data['checkable']
-                checked = data['checked']
-                enabled = data['enabled']
-
                 optionButton = _CDMOptionButton(
                     self._options_container,
                     width=button_width,
                     height=self.height,
-                    text=option_text,
+                    text=data['text'],
                     anchor="w",
                     text_color=self.text_color,
-                    command=partial(self.selectOption, command),
-                    accelerator=accelerator,
-                    icon=icon,
-                    checkable=checkable,
-                    checked=checked,
-                    enabled=enabled
+                    command=partial(self.selectOption, data['command']) if data['command'] else None,
+                    accelerator=data['accelerator'],
+                    icon=data['icon'],
+                    icon_size=data['icon_size'],
+                    checkable=data['checkable'],
+                    checked=data['checked'],
+                    enabled=data['enabled']
                 )
                 optionButton.configure(cursor=self.cursor)
                 optionButton.setParentMenu(self)
@@ -1938,8 +2154,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 self._configureButton(optionButton)
 
                 # Set up checkable command wrapper if needed
-                if checkable and command and command != self._dummy_command:
-                    self._setup_checkable_command(optionButton, command)
+                if data['checkable'] and data['command'] and data['command'] != self._dummy_command:
+                    self._setup_checkable_command(optionButton, data['command'])
 
                 # Add submenu binding if this is a submenu
                 if self.is_submenu:
@@ -1950,8 +2166,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     side="top",
                     fill="both",
                     expand=True,
-                    padx=DEFAULT_PADDING+(self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR),
-                    pady=DEFAULT_PADDING+(self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)
+                    padx=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR),
+                    pady=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)
                 )
 
     def _destroy_scrollable_frame(self) -> None:
@@ -1967,6 +2183,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     options_data.append({
                         'type': 'submenu',
                         'text': option.cget('option'),
+                        'accelerator': option.cget('accelerator'),
+                        'icon': option.cget('icon'),
+                        'icon_size': option.cget('icon_size'),
                         'submenu': option.submenu
                     })
                 else:
@@ -1975,11 +2194,12 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                         'type': 'option',
                         'text': original_text,
                         'command': option.cget('command'),
-                        'accelerator': getattr(option, 'accelerator', None),
-                        'icon': getattr(option, 'icon', None),
-                        'checkable': getattr(option, 'checkable', False),
-                        'checked': getattr(option, 'checked', False),
-                        'enabled': getattr(option, 'enabled', True)
+                        'accelerator': option.cget('accelerator'),
+                        'icon': option.cget('icon'),
+                        'icon_size': option.cget('icon_size'),
+                        'checkable': option.cget('checkable'),
+                        'checked': option.cget('checked'),
+                        'enabled': option.cget('enabled')
                     })
             except Exception as e:
                 warnings.warn(f"Error processing option during scrollable frame destruction: {e}")
@@ -2014,6 +2234,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     text=data['text'],
                     anchor="w",
                     text_color=self.text_color,
+                    accelerator=data['accelerator'],
+                    icon=data['icon'],
+                    icon_size=data['icon_size'],
                     width=self.width,
                     height=self.height
                 )
@@ -2034,34 +2257,27 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     side="top",
                     fill="both",
                     expand=True,
-                    padx=DEFAULT_PADDING + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
-                    pady=DEFAULT_PADDING + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
+                    padx=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
+                    pady=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
                 )
 
                 self._setup_submenu_timers(submenuButtonSeed, submenu)
             else:
                 # Recreate option button
-                option_text = data['text']  
-                command = data['command']
-                accelerator = data['accelerator']
-                icon = data['icon']
-                checkable = data['checkable']
-                checked = data['checked']
-                enabled = data['enabled']
-
                 optionButton = _CDMOptionButton(
                     self._options_container,
                     width=self.width,
                     height=self.height,
-                    text=option_text,
+                    text=data['text'],
                     anchor="w",
                     text_color=self.text_color,
-                    command=partial(self.selectOption, command) if command else None,
-                    accelerator=accelerator,
-                    icon=icon,
-                    checkable=checkable,
-                    checked=checked,
-                    enabled=enabled
+                    command=partial(self.selectOption, data['command']) if data['command'] else None,
+                    accelerator=data['accelerator'],
+                    icon=data['icon'],
+                    icon_size=data['icon_size'],
+                    checkable=data['checkable'],
+                    checked=data['checked'],
+                    enabled=data['enabled']
                 )
                 optionButton.configure(cursor=self.cursor)
                 optionButton.setParentMenu(self)
@@ -2069,8 +2285,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 self._configureButton(optionButton)
 
                 # Set up checkable command wrapper if needed
-                if checkable and command and command != self._dummy_command:
-                    self._setup_checkable_command(optionButton, command)
+                if data['checkable'] and data['command'] and data['command'] != self._dummy_command:
+                    self._setup_checkable_command(optionButton, data['command'])
 
                 # Add submenu binding if this is a submenu
                 if self.is_submenu:
@@ -2081,8 +2297,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     side="top",
                     fill="both",
                     expand=True,
-                    padx=DEFAULT_PADDING+(self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR),
-                    pady=DEFAULT_PADDING+(self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)
+                    padx=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR),
+                    pady=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)
                 )
 
     def destroy(self):
@@ -2188,6 +2404,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         button.bind("<Enter>", lambda e: show_submenu_delayed(e), add="+")
         button.bind("<Leave>", lambda e: hide_submenu_delayed(e), add="+")
 
+
 class ContextMenu(CustomDropdownMenu):
     """A right-click context menu with full dropdown menu functionality.
     
@@ -2270,11 +2487,11 @@ class ContextMenu(CustomDropdownMenu):
         except Exception as e:
             warnings.warn(f"Failed to show context menu: {e}")
 
-    def _show(self, *args, **kwargs):
+    def _show(self):
         """Override _show to use stored cursor position."""
         if hasattr(self, '_context_x') and hasattr(self, '_context_y'):
             self.place(x=self._context_x, y=self._context_y)
         else:
-            super()._show(*args, **kwargs)
+            super()._show()
         self.lift()
         self.focus()

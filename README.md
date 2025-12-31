@@ -171,48 +171,51 @@ option_button.set_enabled(False)  # Disable item
 - **.add_submenu(submenu_name, kwargs)**: Add nested submenu
 - **.configure(kwargs)**: Update dropdown appearance
 - **.cget(param)**: Get configuration parameter
-- **.show()**: Show the dropdown menu
-- **.hide()**: Hide the dropdown menu
+- **.toggleShow()**: Show or hide the dropdown menu
 - **.destroy()**: Clean up resources and destroy menu
+- **.clean()**: Remove all options, submenus, and separators, resetting the menu
+- **.remove_option(option_name)**: Remove a single option or submenu by its display text
 
 ### Arguments
 <a id="customdropdownmenu-arguments"></a>
 
-| Parameter               | Type      | Default              | Description                             |
-|-------------------------|-----------|----------------------|-----------------------------------------|
-| **widget**              | Widget    | -                    | Widget that triggers this dropdown      |
-| **master**              | Widget    | None                 | Parent widget (auto-determined if None) |
-| **border_width**        | int       | 1                    | Border width in pixels                  |
-| **width**               | int       | 150                  | Menu width in pixels                    |
-| **height**              | int       | 25                   | Menu item height in pixels              |
-| **bg_color**            | str/tuple | None                 | Background color                        |
-| **corner_radius**       | int       | 10                   | Corner radius for rounded corners       |
-| **border_color**        | str/tuple | "grey50"             | Border color                            |
-| **separator_color**     | str/tuple | ("grey80", "grey20") | Separator line color                    |
-| **text_color**          | str/tuple | ("black", "white")   | Text color                              |
-| **fg_color**            | str/tuple | "transparent"        | Foreground color                        |
-| **hover_color**         | str/tuple | ("grey75", "grey25") | Hover color                             |
-| **font**                | CTkFont   | ("helvetica", 12)    | Font for menu text                      |
-| **padx**                | int       | 3                    | Horizontal padding                      |
-| **pady**                | int       | 3                    | Vertical padding                        |
-| **cursor**              | str       | "hand2"              | Cursor type on hover                    |
-| **max_visible_options** | int       | 10                   | Options before scrollbar appears        |
-| **enable_scrollbar**    | bool      | True                 | Enable scrollbar for long menus         |
-| **scrollbar_width**     | int       | 16                   | Scrollbar width in pixels               |
+| Parameter               | Type      | Default              | Description                                                   |
+|-------------------------|-----------|----------------------|---------------------------------------------------------------|
+| **widget**              | Widget    | -                    | Widget that triggers this dropdown                            |
+| **master**              | Widget    | None                 | Parent widget (auto-determined if None)                       |
+| **border_width**        | int       | 1                    | Border width in pixels                                        |
+| **width**               | int       | 150                  | Menu width in pixels                                          |
+| **height**              | int       | 25                   | Menu item height in pixels                                    |
+| **bg_color**            | str/tuple | None                 | Background color                                              |
+| **corner_radius**       | int       | 10                   | Corner radius for rounded corners                             |
+| **border_color**        | str/tuple | "grey50"             | Border color                                                  |
+| **separator_color**     | str/tuple | ("grey80", "grey20") | Separator line color                                          |
+| **text_color**          | str/tuple | ("black", "white")   | Text color                                                    |
+| **fg_color**            | str/tuple | "transparent"        | Foreground color                                              |
+| **hover_color**         | str/tuple | ("grey75", "grey25") | Hover color                                                   |
+| **font**                | CTkFont   | ("helvetica", 12)    | Font for menu text                                            |
+| **padx**                | int       | 3                    | Horizontal padding                                            |
+| **pady**                | int       | 3                    | Vertical padding                                              |
+| **cursor**              | str       | "hand2"              | Cursor type on hover                                          |
+| **max_visible_options** | int       | 10                   | Options before scrollbar appears                              |
+| **enable_scrollbar**    | bool      | True                 | Enable scrollbar for long menus                               |
+| **scrollbar_width**     | int       | 16                   | Scrollbar width in pixels                                     |
+| **scale**               | float     | 1.0                  | Single number to uniformly scale the dropdown and its options |
 
 ### add_option() Parameters
 <a id="customdropdownmenu-add-option-params"></a>
 
-| Parameter       | Type          | Default   | Description                                  |
-|-----------------|---------------|-----------|----------------------------------------------|
-| **option**      | str           | -         | Text to display for this option              |
-| **command**     | callable      | None      | Function to call when selected               |
-| **accelerator** | str           | None      | Keyboard shortcut (e.g., "Ctrl+S", "Alt+F4") |
-| **icon**        | str/PIL.Image | None      | Icon file path or PIL Image object           |
-| **checkable**   | bool          | False     | Whether item can be checked/unchecked        |
-| **checked**     | bool          | False     | Initial checked state (if checkable=True)    |
-| **enabled**     | bool          | True      | Whether item is initially enabled            |
-| ***kwargs**     | various       | -         | Additional CTkButton styling options         |
+| Parameter       | Type          | Default | Description                                                      |
+|-----------------|---------------|---------|------------------------------------------------------------------|
+| **option**      | str           | -       | Text to display for this option                                  |
+| **command**     | callable      | None    | Function to call when selected                                   |
+| **accelerator** | str           | None    | Keyboard shortcut (e.g., "Ctrl+S", "Alt+F4")                     |
+| **icon**        | str/PIL.Image | None    | Icon file path or PIL Image object                               |
+| **icon_size**   | int           | 16      | Size (px) to render icon at; defaults to menu's scaled icon size |
+| **checkable**   | bool          | False   | Whether item can be checked/unchecked                            |
+| **checked**     | bool          | False   | Initial checked state (if checkable=True)                        |
+| **enabled**     | bool          | True    | Whether item is initially enabled                                |
+| ***kwargs**     | various       | -       | Additional CTkButton styling options                             |
 
 ---
 

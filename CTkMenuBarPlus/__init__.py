@@ -5,8 +5,9 @@ CTkMenuBarPlus by xzyqox | KiTant (https://github.com/KiTant)
 Homepage: https://github.com/KiTant/CTkMenuBarPlus
 """
 
-__version__ = '1.1'
+__version__ = '1.2'
 
 from .menu_bar import CTkMenuBar
 from .title_menu_win import CTkTitleMenu
 from .dropdown_menu import CustomDropdownMenu, ContextMenu
+from .accelerators import _unregister_accelerator, _register_accelerator

@@ -21,6 +21,8 @@ Notes:
       or ANY Tk/CustomTkinter widget (e.g., CTkTextbox, CTkEntry).
     - By default bindings attach to the widget's toplevel (window). Use bind_scope='widget'
       to bind only to the specified widget (fires when the widget has focus).
+
+Author: xzyqox (KiTant) | https://github.com/KiTant
 """
 from __future__ import annotations
 
