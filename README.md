@@ -6,7 +6,7 @@ Modern menu bar widget library for customtkinter with enhanced features.
 - [CTkMenuBar — Arguments](#ctkmenubar-arguments)
 - [CTkTitleMenu — Arguments](#ctktitlemenu-arguments)
 - [CustomDropdownMenu — Arguments](#customdropdownmenu-arguments)
-- [CustomDropdownMenu — add_option() Parameters](#customdropdownmenu-add-option-params)
+- [CustomDropdownMenu — add_option() and add_submenu() Parameters](#customdropdownmenu-add-option-params)
 - [ContextMenu — Arguments](#contextmenu-arguments)
 - [Keyboard Accelerators](#keyboard-accelerators-anchor)
 - [Theming](#theming-anchor)
@@ -202,20 +202,23 @@ option_button.set_enabled(False)  # Disable item
 | **scrollbar_width**     | int       | 16                   | Scrollbar width in pixels                                     |
 | **scale**               | float     | 1.0                  | Single number to uniformly scale the dropdown and its options |
 
-### add_option() Parameters
+### add_option() and add_submenu() Parameters
 <a id="customdropdownmenu-add-option-params"></a>
 
-| Parameter       | Type          | Default | Description                                                      |
-|-----------------|---------------|---------|------------------------------------------------------------------|
-| **option**      | str           | -       | Text to display for this option                                  |
-| **command**     | callable      | None    | Function to call when selected                                   |
-| **accelerator** | str           | None    | Keyboard shortcut (e.g., "Ctrl+S", "Alt+F4")                     |
-| **icon**        | str/PIL.Image | None    | Icon file path or PIL Image object                               |
-| **icon_size**   | int           | 16      | Size (px) to render icon at; defaults to menu's scaled icon size |
-| **checkable**   | bool          | False   | Whether item can be checked/unchecked                            |
-| **checked**     | bool          | False   | Initial checked state (if checkable=True)                        |
-| **enabled**     | bool          | True    | Whether item is initially enabled                                |
-| ***kwargs**     | various       | -       | Additional CTkButton styling options                             |
+| Parameter               | Type          | Default | Description                                                                               | Parameter of add_submenu() or add_option()? |
+|-------------------------|---------------|---------|-------------------------------------------------------------------------------------------|---------------------------------------------|
+| **option**              | str           | -       | Text to display for this option                                                           | Both (**submenu_name** in add_submenu())    |
+| **command**             | callable      | None    | Function to call when selected                                                            | add_option()                                |
+| **accelerator**         | str           | None    | Keyboard shortcut (e.g., "Ctrl+S", "Alt+F4")                                              | Both                                        |
+| **icon**                | str/PIL.Image | None    | Icon file path or PIL Image object                                                        | Both                                        |
+| **icon_size**           | int           | 16      | Size (px) to render icon at; defaults to menu's scaled icon size                          | Both                                        |
+| **checkable**           | bool          | False   | Whether item can be checked/unchecked                                                     | add_option()                                |
+| **checked**             | bool          | False   | Initial checked state (if checkable=True)                                                 | add_option()                                |
+| **enabled**             | bool          | True    | Whether item is initially enabled                                                         | Both                                        |
+| **max_visible_options** | int           | 10      | Maximum number of visible options before scrollbar appears (inherits from parent if None) | add_submenu()                               |
+| **enable_scrollbar**    | bool          | True    | Whether to enable scrollbar for this submenu (inherits from parent if None)               | add_submenu()                               |
+| **scrollbar_width**     | int           | 16      | Width of the scrollbar (inherits from parent if None)                                     | add_submenu()                               |
+| ***kwargs**             | various       | -       | Additional CTkButton styling options                                                      | Both                                        |
 
 ---
 

@@ -12,523 +12,21 @@ Original Author: LucianoSaldivia | https://github.com/LucianoSaldivia
 CTkMenuBar Author: Akash Bora (Akascape) | https://github.com/Akascape
 Enhanced Features: xzyqox (KiTant) | https://github.com/KiTant
 
-Version: Enhanced Edition 1.2
+Version: Enhanced Edition 1.3
 """
 
 from __future__ import annotations
 import customtkinter
 from functools import partial
 import tkinter as tk
-from typing import Callable, Optional, Union, List, Any, Tuple
+from typing import Callable, Optional, Union, List, Any
 import PIL.Image, PIL.ImageTk
 import warnings
-import sys
-from .accelerators import _register_accelerator, _unregister_accelerator
-
-
-# Custom Exception Classes
-class CTkMenuBarError(Exception):
-    """Base exception class for CTkMenuBar dropdown menu errors."""
-    pass
-
-
-class MenuWidgetBindingError(CTkMenuBarError):
-    """Raised when menu widget binding fails."""
-    pass
-
-
-class MenuCommandExecutionError(CTkMenuBarError):
-    """Raised when menu command execution fails."""
-    pass
-
-
-class MenuToggleError(CTkMenuBarError):
-    """Raised when menu show/hide toggle fails."""
-    pass
-
-
-class MenuOptionError(CTkMenuBarError):
-    """Raised when menu option operations fail."""
-    pass
-
-
-class MenuIconError(CTkMenuBarError):
-    """Raised when menu icon loading or processing fails."""
-    pass
-
-
-class MenuPositioningError(CTkMenuBarError):
-    """Raised when menu positioning calculations fail."""
-    pass
-
-
-class MenuScrollError(CTkMenuBarError):
-    """Raised when scrollable menu operations fail."""
-    pass
-
-# ===== CONSTANTS =====
-
-# Timing constants (in milliseconds)
-DEFAULT_SUBMENU_DELAY = 500  # Delay before showing submenu on hover
-
-# Layout and spacing constants
-DEFAULT_PADDING = 3  # Internal padding for menu items
-DEFAULT_CORNER_RADIUS_FACTOR = 5  # Factor for calculating corner radius scaling
-DEFAULT_BORDER_WIDTH = 1  # Default border width for menu items
-DEFAULT_WIDTH = 150  # Default menu width in pixels
-DEFAULT_HEIGHT = 25  # Default menu item height in pixels  
-DEFAULT_CORNER_RADIUS = 10  # Default corner radius for rounded corners
-
-# Theme color constants (light mode, dark mode)
-DEFAULT_SEPARATOR_COLOR = ("grey80", "grey20")  # Separator line colors
-DEFAULT_TEXT_COLOR = ("black", "white")  # Menu text colors
-DEFAULT_HOVER_COLOR = ("grey75", "grey25")  # Hover colors
-DEFAULT_BORDER_COLOR = "grey50"  # Border color
-
-# Scrollbar constants
-DEFAULT_MAX_VISIBLE_OPTIONS = 10  # Maximum options before scrollbar appears
-SCROLLBAR_EXTRA_SPACE = 20  # Extra space for scrollbar
-SCROLLBAR_WIDTH = 16  # Default scrollbar width
-
-# Positioning constants  
-SUBMENU_HORIZONTAL_OFFSET = 1  # Additional horizontal offset for submenu positioning
-SUBMENU_OVERLAP_PREVENTION = 1  # Minimal gap to prevent visual overlap
-
-# Icon constants
-DEFAULT_ICON_SIZE = 16  # Default icon size in pixels
-
-# Type aliases for better readability
-ColorType = Union[str, Tuple[str, str]]
-WidgetType = Union[customtkinter.CTkBaseClass, '_CDMSubmenuButton']
-RootType = Union[customtkinter.CTk, customtkinter.CTkToplevel]
-
-
-class _CDMOptionButton(customtkinter.CTkButton):
-    """Enhanced option button for dropdown menus with accelerator, icon, and state support."""
-    
-    def __init__(self, *args, **kwargs):
-        """Initialize option button with enhanced features.
-        
-        Args:
-            accelerator: Keyboard shortcut (e.g., "Ctrl+O")
-            icon: Path to icon file or PIL Image object
-            icon_size: Size (px) to render icon at; defaults to menu's scaled icon size
-            checkable: Whether this item can be checked/unchecked
-            checked: Initial checked state
-            enabled: Whether the item is initially enabled
-            **kwargs: Additional arguments passed to CTkButton
-        """
-        # Extract and store custom parameters
-        self.accelerator = kwargs.pop('accelerator', None)
-        self.icon = kwargs.pop('icon', None)
-        self.icon_size = kwargs.pop('icon_size', DEFAULT_ICON_SIZE)
-        self.base_icon_size = self.icon_size
-        self.checkable = kwargs.pop('checkable', False)
-        self.checked = kwargs.pop('checked', False)
-        self.enabled = kwargs.pop('enabled', True)
-        
-        # Capture logical text before parent init so we can preserve it
-        self._option_text = kwargs.get("text", "")
-
-        # Initialize parent button
-        super().__init__(*args, **kwargs)
-        
-        # Setup initial configuration
-        self._configure_initial_state()
-        self._setup_features()
-    
-    def _configure_initial_state(self) -> None:
-        """Configure the initial state of the button."""
-        if not self.enabled:
-            self.configure(state="disabled")
-    
-    def _setup_features(self) -> None:
-        """Setup all enhanced features (icon, accelerator, checkable state)."""
-        if self.accelerator:
-            self._setup_accelerator_display()
-        if self.checkable:
-            self.set_checked(self.checked)
-    
-    def _setup_icon(self) -> None:
-        """Setup icon for the menu item."""
-        try:
-            # Load image from file or use provided PIL image
-            if isinstance(self.icon, str):
-                image = PIL.Image.open(self.icon)
-            else:
-                image = self.icon
-            self.icon_size = max(8, round(self.base_icon_size * self.parent_menu.cget("scale")))
-            # Resize to configured icon size
-            size = self.icon_size
-            image = image.resize((size, size), PIL.Image.Resampling.LANCZOS)
-            self.icon_image = customtkinter.CTkImage(
-                light_image=image, 
-                dark_image=image, 
-                size=(size, size)
-            )
-            self.configure(image=self.icon_image)
-            
-        except Exception as e:
-            raise MenuIconError(f"Error loading icon: {e}") from e
-    
-    def _setup_accelerator_display(self) -> None:
-        """Ensure accelerator is reflected in display string."""
-        self._refresh_display()
-    def _get_accel_targets(self):
-        """Return a list of windows to bind accelerators to.
-
-        For title_menu overlay (transient toplevel), we bind to BOTH the
-        overlay and its transient master so that shortcuts work regardless of
-        where the focus currently is (overlay or main window).
-        """
-        tl = self.parent_menu.winfo_toplevel()
-        targets = [tl]
-        try:
-            trans_path = tl.tk.call('wm', 'transient', tl._w)
-            if trans_path:
-                master_widget = tl.nametowidget(trans_path)
-                if hasattr(master_widget, 'winfo_toplevel'):
-                    master_tl = master_widget.winfo_toplevel()
-                    if master_tl not in targets:
-                        targets.append(master_tl)
-        except Exception:
-            pass
-        return targets
-
-    def setParentMenu(self, menu: "CustomDropdownMenu") -> None:
-        """Set the parent menu and bind accelerator if provided.
-        
-        Args:
-            menu: The parent dropdown menu
-        """
-        self.parent_menu = menu
-
-        if self.icon:
-            self._setup_icon()
-        if self.accelerator:
-            self._bind_accelerator()
-    
-    def _bind_accelerator(self) -> None:
-        """Bind keyboard accelerator to the command with error handling."""
-        try:
-            targets = self._get_accel_targets()
-            target_ids = {t.winfo_id() for t in targets}
-
-            # If already bound with same key and same targets, skip
-            if getattr(self, "_accel_bound", False) and getattr(self, "_accel_key", None) == self.accelerator and getattr(self, "_accel_target_ids", None) == target_ids:
-                return
-
-            # Unregister old bindings if key or targets changed
-            if getattr(self, "_accel_bound", False) and (getattr(self, "_accel_key", None) != self.accelerator or getattr(self, "_accel_target_ids", None) != target_ids):
-                prev_targets = getattr(self, "_accel_targets", []) or []
-                for pt in prev_targets:
-                    try:
-                        _unregister_accelerator(pt, getattr(self, "_accel_key", None), self._execute_if_enabled)
-                    except Exception:
-                        pass
-
-            # Register on all targets
-            for t in targets:
-                _register_accelerator(t, self.accelerator, self._execute_if_enabled)
-
-            # Mark as bound
-            self._accel_bound = True
-            self._accel_key = self.accelerator
-            self._accel_targets = targets
-            self._accel_target_ids = target_ids
-            
-        except Exception as e:
-            raise MenuWidgetBindingError(f"Error binding accelerator {self.accelerator}: {e}") from e
-    
-    def _execute_if_enabled(self) -> None:
-        """Execute button command only if enabled."""
-        if self.enabled:
-            self.invoke()
-    
-    def set_enabled(self, enabled: bool) -> None:
-        """Enable or disable the menu item.
-        
-        Args:
-            enabled: Whether the item should be enabled
-        """
-        self.enabled = enabled
-        self.configure(state="normal" if enabled else "disabled")
-    
-    def enable(self, enabled: bool = True) -> None:
-        """Enable or disable the menu item (alias for set_enabled).
-        
-        Args:
-            enabled: Whether the item should be enabled (default: True)
-        """
-        self.set_enabled(enabled)
-    
-    def set_checked(self, checked: bool) -> None:
-        """Set the checked state for checkable items.
-        
-        Args:
-            checked: Whether the item should be checked
-        """
-        if not self.checkable:
-            return
-        
-        self.checked = checked
-        self._refresh_display()
-
-    def _refresh_display(self) -> None:
-        """Compose and set the display text from logical text, checkmark, and accelerator."""
-        base = self._option_text or ""
-        # Apply checkmark prefix if checkable
-        if self.checkable:
-            prefix = "✅ " if getattr(self, "checked", False) else "❌  "
-            base = f"{prefix}{base}"
-        # Apply accelerator suffix with spacing
-        if self.accelerator:
-            accel_display = self.accelerator
-            # Normalize CmdOrCtrl pseudo-modifier for platform display
-            try:
-                if sys.platform == 'darwin':
-                    accel_display = accel_display.replace('CmdOrCtrl', 'Cmd')
-                else:
-                    accel_display = accel_display.replace('CmdOrCtrl', 'Ctrl')
-            except Exception:
-                # Fallback: leave as-is if platform check fails
-                pass
-            base = f"{base}    {accel_display}"
-        super().configure(text=base)
-    
-    def toggle_checked(self) -> None:
-        """Toggle the checked state for checkable items."""
-        if self.checkable:
-            self.set_checked(not self.checked)
-    
-    # Enhanced cget and configure methods
-    def cget(self, param: str) -> Any:
-        """Get configuration parameter value with support for custom parameters.
-        
-        Args:
-            param: Parameter name to retrieve
-            
-        Returns:
-            Parameter value
-        """
-        custom_params = {
-            "option": lambda: self._option_text,
-            "accelerator": lambda: self.accelerator,
-            "enabled": lambda: self.enabled,
-            "checked": lambda: self.checked,
-            "checkable": lambda: self.checkable,
-            "icon": lambda: self.icon,
-            "scaled_icon_size": lambda: self.icon_size,
-            "icon_size": lambda: self.base_icon_size
-        }
-        
-        if param in custom_params:
-            return custom_params[param]()
-        
-        return super().cget(param)
-    
-    def configure(self, **kwargs) -> None:
-        """Configure button with support for custom parameters.
-        
-        Args:
-            **kwargs: Configuration parameters
-        """
-        # Handle custom parameters
-        custom_handlers = {
-            "option": self._handle_option_config,
-            "accelerator": self._handle_accelerator_config,
-            "enabled": self.set_enabled,
-            "checked": self.set_checked,
-            "checkable": self._handle_checkable_config,
-            "icon": self._handle_icon_config,
-            "icon_size": self._handle_icon_size_config,
-        }
-        
-        # Treat plain text updates as logical text updates to preserve decorations
-        if "text" in kwargs and "option" not in kwargs:
-            kwargs["option"] = kwargs.pop("text")
-
-        for param, value in list(kwargs.items()):
-            if param in custom_handlers:
-                custom_handlers[param](value)
-                kwargs.pop(param)
-        
-        # Configure remaining standard parameters
-        if kwargs:
-            super().configure(**kwargs)
-    
-    def _handle_option_config(self, value: str) -> None:
-        """Handle logical option text change and refresh display."""
-        self._option_text = value
-        self._refresh_display()
-
-    def _handle_accelerator_config(self, value: str) -> None:
-        """Handle accelerator configuration change."""
-        self.accelerator = value
-        self._refresh_display()
-        if hasattr(self, 'parent_menu'):
-            self._bind_accelerator()
-    
-    def _handle_checkable_config(self, value: bool) -> None:
-        """Handle checkable configuration change."""
-        self.checkable = value
-        self._refresh_display()
-    
-    def _handle_icon_config(self, value: Union[str, PIL.Image.Image]) -> None:
-        """Handle icon configuration change."""
-        self.icon = value
-        if value:
-            self._setup_icon()
-
-    def _handle_icon_size_config(self, value: int) -> None:
-        """Handle icon configuration change."""
-        self.base_icon_size = value
-        if value:
-            self._setup_icon()
-
-
-class _CDMSubmenuButton(_CDMOptionButton):
-    """Specialized button for submenu items that can hold child menus.
-    
-    This class extends _CDMOptionButton to provide submenu functionality,
-    allowing menu items to open child dropdown menus when hovered or clicked.
-    """
-    
-    def setSubmenu(self, submenu: "CustomDropdownMenu"):
-        """Assign a submenu to this button.
-        
-        Args:
-            submenu: The CustomDropdownMenu instance to assign as child menu
-        """
-        self.submenu = submenu
-
-    def cget(self, param):
-        if param == "submenu_name":
-            return getattr(self, "_option_text", super().cget("text"))
-        return super().cget(param)
-
-    def configure(self, **kwargs):
-        if "submenu_name" in kwargs:
-            # Map submenu_name to logical option text and refresh
-            kwargs["option"] = kwargs.pop("submenu_name")
-        super().configure(**kwargs)
-
-    def _bind_accelerator(self) -> None:
-        """Bind accelerator so it opens the full chain to this submenu.
-
-        This overrides the base binding to ensure that when the submenu's
-        accelerator is pressed, all ancestor menus are opened and this
-        submenu's dropdown is shown.
-        """
-        try:
-            targets = self._get_accel_targets()
-            target_ids = {t.winfo_id() for t in targets}
-
-            # If already bound with same key and same targets, skip
-            if getattr(self, "_accel_bound", False) and getattr(self, "_accel_key", None) == self.accelerator and getattr(self, "_accel_target_ids", None) == target_ids:
-                return
-
-            # Unregister old bindings if key or targets changed
-            if getattr(self, "_accel_bound", False) and (getattr(self, "_accel_key", None) != self.accelerator or getattr(self, "_accel_target_ids", None) != target_ids):
-                prev_targets = getattr(self, "_accel_targets", []) or []
-                for pt in prev_targets:
-                    try:
-                        _unregister_accelerator(pt, getattr(self, "_accel_key", None), self._activate_submenu_accelerator)
-                    except Exception:
-                        pass
-
-            # Register on all targets
-            for t in targets:
-                _register_accelerator(t, self.accelerator, self._activate_submenu_accelerator)
-
-            # Mark as bound
-            self._accel_bound = True
-            self._accel_key = self.accelerator
-            self._accel_targets = targets
-            self._accel_target_ids = target_ids
-
-        except Exception as e:
-            raise MenuWidgetBindingError(f"Error binding submenu accelerator {self.accelerator}: {e}") from e
-
-    def _activate_submenu_accelerator(self) -> None:
-        """Open all parent menus and show this submenu when accelerator is used."""
-        if not getattr(self, "enabled", True):
-            return
-
-        try:
-            # Build chain of ancestor submenu buttons (from immediate parent up)
-            chain_buttons = []  # from rootmost to just above self
-            # Walk up via parent menus: if a parent menu's seed is a submenu button,
-            # it means that menu is itself a submenu of a higher menu.
-            btn = self
-            top_menu = self.parent_menu
-            while True:
-                parent_menu = btn.parent_menu
-                seed = getattr(parent_menu, 'menu_seed_object', None)
-                if isinstance(seed, _CDMSubmenuButton):
-                    chain_buttons.append(seed)
-                    btn = seed
-                else:
-                    top_menu = parent_menu
-                    break
-
-            # Show the top-level menu first
-            try:
-                # Hide siblings at the bar level to avoid overlap
-                if hasattr(top_menu, '_hide_sibling_menus'):
-                    top_menu._hide_sibling_menus()
-                top_menu._show()
-                top_menu.lift()
-                top_menu.focus()
-                # Ensure geometry for proper child placement
-                try:
-                    top_menu.update_idletasks()
-                    if not top_menu.winfo_ismapped():
-                        top_menu.update()
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-            # Then, for each ancestor submenu button from top to bottom, show its submenu
-            for ancestor_btn in reversed(chain_buttons):
-                try:
-                    parent = ancestor_btn.parent_menu
-                    if hasattr(parent, '_collapseSiblingSubmenus'):
-                        parent._collapseSiblingSubmenus(ancestor_btn)
-                    # Ensure geometry is up-to-date before placing submenu
-                    try:
-                        parent.update_idletasks()
-                        if not parent.winfo_ismapped():
-                            parent.update()
-                        ancestor_btn.update_idletasks()
-                    except Exception:
-                        pass
-                    ancestor_btn.submenu._show()
-                    ancestor_btn.submenu.lift()
-                except Exception:
-                    continue
-
-            # Finally, collapse siblings in our parent and show our submenu
-            try:
-                parent = self.parent_menu
-                if hasattr(parent, '_collapseSiblingSubmenus'):
-                    parent._collapseSiblingSubmenus(self)
-                try:
-                    parent.update_idletasks()
-                    if not parent.winfo_ismapped():
-                        parent.update()
-                    self.update_idletasks()
-                except Exception:
-                    pass
-                self.submenu._show()
-                self.submenu.lift()
-            except Exception:
-                pass
-
-        except Exception:
-            # Silently ignore activation errors to avoid breaking global key handling
-            return
+from .custom_exception_classes import *
+from .constants import *
+from ._CDMOptionButton import _CDMOptionButton
+from ._CDMSubmenuButton import _CDMSubmenuButton
+from .accelerators import _unregister_accelerator
 
 
 class CustomDropdownMenu(customtkinter.CTkFrame):
@@ -536,7 +34,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
 
     def __init__(self,
                  widget: WidgetType,
-                 master: any = None,
+                 master: Any = None,
                  border_width: int = DEFAULT_BORDER_WIDTH,
                  width: int = DEFAULT_WIDTH,
                  height: int = DEFAULT_HEIGHT,
@@ -545,9 +43,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                  border_color: ColorType = DEFAULT_BORDER_COLOR,
                  separator_color: ColorType = DEFAULT_SEPARATOR_COLOR,
                  text_color: ColorType = DEFAULT_TEXT_COLOR,
-                 fg_color: ColorType = "transparent",
+                 fg_color: ColorType = DEFAULT_FG_COLOR,
                  hover_color: ColorType = DEFAULT_HOVER_COLOR,
-                 font: customtkinter.CTkFont = ("helvetica", 12),
+                 font: customtkinter.CTkFont = DEFAULT_FONT,
                  padx: int = DEFAULT_PADDING,
                  pady: int = DEFAULT_PADDING,
                  cursor: str = "hand2",
@@ -607,7 +105,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         self._apply_scale()
         self._setup_menu_widget()
     
-    def _setup_master_and_bindings(self, widget: WidgetType, master: any) -> any:
+    def _setup_master_and_bindings(self, widget: WidgetType, master: Any) -> Any:
         """Setup master widget and mouse event bindings based on widget type.
         
         Args:
@@ -638,7 +136,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         # Default safe path
         return self._setup_default_bindings(widget, master)
     
-    def _setup_title_menu_bindings(self, widget: WidgetType, master: any) -> any:
+    def _setup_title_menu_bindings(self, widget: WidgetType, master: Any) -> Any:
         """Setup bindings for title menu context."""
         tl = widget.winfo_toplevel()
         tl.bind("<ButtonPress>", self._checkIfMouseLeft, add="+")
@@ -651,7 +149,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 pass
         return resolved_master
     
-    def _setup_menu_bar_bindings(self, widget: WidgetType, master: any) -> any:
+    def _setup_menu_bar_bindings(self, widget: WidgetType, master: Any) -> Any:
         """Setup bindings for menu bar context."""
         tl = widget.winfo_toplevel()
         tl.bind("<ButtonPress>", self._checkIfMouseLeft, add="+")
@@ -670,7 +168,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
 
         return master
     
-    def _setup_default_bindings(self, widget: WidgetType, master: any) -> any:
+    def _setup_default_bindings(self, widget: WidgetType, master: Any) -> Any:
         """Setup bindings for default context."""
         tl = widget.winfo_toplevel()
         tl.bind("<ButtonPress>", self._checkIfMouseLeft, add="+")
@@ -769,9 +267,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 scaled_size = max(1, int(round(size * self.scale)))
                 return (family, scaled_size) if style is None else (family, scaled_size, style)
             except Exception:
-                return ("helvetica", max(1, int(round(12 * self.scale))))
+                return (DEFAULT_FONT[0], max(1, int(round(DEFAULT_FONT[1] * self.scale))))
         # Fallback
-        return ("helvetica", max(1, int(round(12 * self.scale))))
+        return (DEFAULT_FONT[0], max(1, int(round(DEFAULT_FONT[1] * self.scale))))
 
     def _apply_scale(self) -> None:
         """Apply current scale to all size-related properties and re-layout children."""
@@ -1069,6 +567,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     max_visible_options: int = None,
                     enable_scrollbar: bool = None,
                     scrollbar_width: int = None,
+                    enabled: bool = True,
                     **kwargs) -> "CustomDropdownMenu":
         """
         Add a submenu to the dropdown menu.
@@ -1081,6 +580,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             max_visible_options: Maximum number of visible options before scrollbar appears (inherits from parent if None)
             enable_scrollbar: Whether to enable scrollbar for this submenu (inherits from parent if None)
             scrollbar_width: Width of the scrollbar (inherits from parent if None)
+            enabled: Whether the item is initially enabled
             **kwargs: Additional arguments for the submenu button
 
         Returns:
@@ -1096,7 +596,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             scrollbar_width = kwargs.pop('scrollbar_width', self._base_scrollbar_width)
 
         submenuButtonSeed = _CDMSubmenuButton(self._options_container, text=submenu_name, anchor="w",
-                                              text_color=self.text_color,
+                                              text_color=self.text_color, enabled=enabled,
                                               width=self.width, height=self.height, accelerator=accelerator,
                                               icon=icon, icon_size=icon_size or self.icon_size,
                                               **kwargs)
@@ -1153,7 +653,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
     def add_separator(self) -> None:
         separator = customtkinter.CTkFrame(
             master=self,
-            height=max(1, int(round(2 * getattr(self, 'scale', 1.0)))) ,
+            height=max(1, int(round(2 * getattr(self, 'scale', 1.0)))),
             width=self.width,
             fg_color=self.separator_color,
             border_width=0
@@ -1164,37 +664,38 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             expand=True,
         )
 
-    def remove_option(self, option_name: str) -> bool:
-        """Remove a single option or submenu by its display text.
+    def remove_option(self, option_widget_or_name: Union['_CDMOptionButton', '_CDMSubmenuButton', str],
+                      cleaning: bool = False) -> bool:
+        """Remove a single option or submenu by its object or display text.
         
         Args:
-            option_name: Visible text of the option/submenu to remove.
-
+            option_widget_or_name: Option/submenu object to remove or visible text of the option/submenu to remove (will be used only if option arg is None).
+            cleaning: Don't touch it (only for clean() function)
         Returns:
             True if an item was removed, False if no matching item was found.
         """
         try:
-            if not option_name or not isinstance(option_name, str):
+            option_widget = False
+            if (isinstance(option_widget_or_name, _CDMOptionButton) or
+                    isinstance(option_widget_or_name, _CDMSubmenuButton)):
+                option_widget = True
+            if not option_widget_or_name or (not isinstance(option_widget_or_name, str) and not option_widget):
                 return False
 
             # Normalize the requested name once
-            target = self._strip_display_artifacts(option_name).strip()
-
+            target = self._strip_display_artifacts(option_widget_or_name).strip() if not option_widget else option_widget_or_name
             removed = False
+
             for option in self._options_list[:]:
                 try:
-                    # Prefer stored logical text when available
-                    try:
-                        current = option.cget('option')
-                    except Exception:
-                        current = self._normalized_text_for_option(option)
-                    if current == target or current.lower() == target.lower():
+                    current = option.cget('option') if not option_widget else option
+                    if current == target or (not option_widget and current.lower() == target.lower()):
                         # If this is a submenu option, first cancel any pending timers
                         # which may have been scheduled on either this menu (self) or the submenu.
-                        if isinstance(option, _CDMSubmenuButton) and hasattr(option, 'submenu') and option.submenu:
+                        if isinstance(option, _CDMSubmenuButton) and hasattr(option, 'submenu'):
                             try:
                                 submenu = option.submenu
-                                if hasattr(submenu, "_timer_id") and submenu._timer_id:
+                                if hasattr(submenu, "_timer_id") and submenu._timer_id and not cleaning:
                                     try:
                                         # Attempt cancel on parent scheduler
                                         self.after_cancel(submenu._timer_id)
@@ -1260,7 +761,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     # Continue searching other options even if one errors
                     continue
 
-            if removed:
+            if removed and not cleaning:
                 # Reevaluate scrollbar state after removal
                 self._update_scrollbar_visibility()
             return removed
@@ -1286,46 +787,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
 
         # Destroy option widgets and any attached submenus
         for option in self._options_list[:]:
-            try:
-                # Unregister accelerators bound by this option before destroying it
-                try:
-                    if getattr(option, "_accel_bound", False):
-                        cb = option._activate_submenu_accelerator if isinstance(option, _CDMSubmenuButton) else getattr(option, "_execute_if_enabled", None)
-                        key = getattr(option, "_accel_key", None)
-                        targets = getattr(option, "_accel_targets", None)
-                        if targets is None:
-                            try:
-                                targets = option._get_accel_targets()
-                            except Exception:
-                                targets = []
-                        if key and cb and targets:
-                            for pt in targets:
-                                try:
-                                    _unregister_accelerator(pt, key, cb)
-                                except Exception:
-                                    pass
-                except Exception:
-                    pass
-
-                if isinstance(option, _CDMSubmenuButton) and hasattr(option, 'submenu') and option.submenu:
-                    # Ensure child submenu unregisters its accelerators/options first
-                    try:
-                        if hasattr(option.submenu, 'clean'):
-                            option.submenu.clean()
-                    except Exception:
-                        pass
-                    try:
-                        option.submenu.destroy()
-                    except Exception:
-                        pass
-                try:
-                    if hasattr(option, 'enable'):
-                        option.enable(False)
-                except Exception:
-                    pass
-                option.destroy()
-            except Exception:
-                pass
+            self.remove_option(option, True)
 
         # Clear internal list
         self._options_list.clear()
@@ -1375,33 +837,6 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         # Remove legacy tab-based accelerator suffix if present
         if '\t' in text:
             text = text.split('\t', 1)[0]
-        return text.strip()
-
-    def _normalized_text_for_option(self, option_widget: Union['_CDMOptionButton', '_CDMSubmenuButton']) -> str:
-        """Return the logical name of an option, without checkmarks or accelerator text."""
-        try:
-            raw = option_widget.cget('text')
-        except Exception:
-            raw = ''
-        text = self._strip_display_artifacts(raw)
-
-        # Remove the runtime accelerator suffix that is added as "    <accel>"
-        accel = getattr(option_widget, 'accelerator', None)
-        if accel and isinstance(text, str):
-            # Match the display mapping performed in _refresh_display
-            accel_display = accel
-            try:
-                import sys
-                if sys.platform == 'darwin':
-                    accel_display = accel_display.replace('CmdOrCtrl', 'Cmd')
-                else:
-                    accel_display = accel_display.replace('CmdOrCtrl', 'Ctrl')
-            except Exception:
-                pass
-            expected_suffix = f"    {accel_display}"
-            if text.endswith(expected_suffix):
-                text = text[: -len(expected_suffix)]
-
         return text.strip()
 
     def _show(self) -> None:
@@ -1543,7 +978,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         self._hide()
         self._hideParentMenus()
 
-    def _collapseSiblingSubmenus(self, button: Union[_CDMOptionButton, _CDMSubmenuButton], *args, **kwargs) -> None:
+    def _collapseSiblingSubmenus(self, button: Union['_CDMOptionButton', '_CDMSubmenuButton'], *args, **kwargs) -> None:
         """Collapse all sibling submenus except the one associated with the given button.
         
         Args:
@@ -1597,7 +1032,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
         Args:
             button: The button to style
         """
-        button.configure(fg_color="transparent")
+        button.configure(fg_color=DEFAULT_FG_COLOR)
         if self.fg_color:
             button.configure(fg_color=self.fg_color)
         if self.hover_color:
@@ -2030,7 +1465,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             self,
             width=frame_width,
             height=max_height,
-            fg_color=self.fg_color if self.fg_color else "transparent",
+            fg_color=self.fg_color if self.fg_color else DEFAULT_FG_COLOR,
             corner_radius=0,
             border_color=self.border_color,
             border_width=self.border_width
@@ -2048,7 +1483,16 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             pass
 
         self._scrollable_frame.pack(fill="both", expand=True, padx=0, pady=0)
-        
+        self._recreate_options("creation", button_width=frame_width - scrollbar_space)
+
+    def _destroy_scrollable_frame(self) -> None:
+        """Remove scrollable frame and move options back to main frame."""
+        if self._scrollable_frame is None:
+            return
+        self._recreate_options("destruction")
+
+    def _recreate_options(self, process: str, **kwargs):
+        button_width = kwargs.pop("button_width", self.width)
         # Store current options data before recreating them
         options_data = []
         for option in self._options_list:
@@ -2060,13 +1504,13 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                         'accelerator': option.cget('accelerator'),
                         'icon': option.cget('icon'),
                         'icon_size': option.cget('icon_size'),
-                        'submenu': option.submenu
+                        'submenu': option.submenu,
+                        'enabled': option.cget('enabled')
                     })
                 else:
-                    original_text = option.cget('option')
                     options_data.append({
                         'type': 'option',
-                        'text': original_text,
+                        'text': option.cget('option'),
                         'command': option.cget('command'),
                         'accelerator': option.cget('accelerator'),
                         'icon': option.cget('icon'),
@@ -2077,134 +1521,9 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     })
             except Exception as e:
                 # Issue warning but continue processing other options
-                warnings.warn(f"Error processing option during scrollable frame creation: {e}")
+                warnings.warn(f"Error processing option during scrollable frame {process}: {e}")
                 continue
-        
-        # Clear existing options
-        for option in self._options_list:
-            try:
-                option.destroy()
-            except:
-                pass
-        self._options_list.clear()
 
-        # Update the options container
-        self._options_container = self._scrollable_frame
-
-        # Calculate button width (excluding scrollbar space)
-        button_width = frame_width - scrollbar_space
-
-        # Recreate options in the scrollable frame
-        for data in options_data:
-            if data['type'] == 'submenu':
-                # Recreate submenu button
-                submenuButtonSeed = _CDMSubmenuButton(
-                    self._options_container,
-                    text=data['text'],
-                    anchor="w",
-                    text_color=self.text_color,
-                    accelerator=data['accelerator'],
-                    icon=data['icon'],
-                    icon_size=data['icon_size'],
-                    width=button_width,
-                    height=self.height
-                )
-                submenuButtonSeed.setParentMenu(self)
-
-                # Update the submenu's menu_seed_object
-                submenu = data['submenu']
-                submenu.menu_seed_object = submenuButtonSeed
-
-                submenuButtonSeed.setSubmenu(submenu)
-                submenuButtonSeed.configure(command=submenu.toggleShow)
-                submenu.is_submenu = True
-                self._options_list.append(submenuButtonSeed)
-                self._configureButton(submenuButtonSeed)
-
-                submenuButtonSeed.configure(cursor=self.cursor)
-                submenuButtonSeed.pack(
-                    side="top",
-                    fill="both",
-                    expand=True,
-                    padx=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR),
-                    pady=self._scaled_padding + (self.corner_radius / DEFAULT_CORNER_RADIUS_FACTOR)
-                )
-
-                self._setup_submenu_timers(submenuButtonSeed, submenu)
-            else:
-                # Recreate option button
-                optionButton = _CDMOptionButton(
-                    self._options_container,
-                    width=button_width,
-                    height=self.height,
-                    text=data['text'],
-                    anchor="w",
-                    text_color=self.text_color,
-                    command=partial(self.selectOption, data['command']) if data['command'] else None,
-                    accelerator=data['accelerator'],
-                    icon=data['icon'],
-                    icon_size=data['icon_size'],
-                    checkable=data['checkable'],
-                    checked=data['checked'],
-                    enabled=data['enabled']
-                )
-                optionButton.configure(cursor=self.cursor)
-                optionButton.setParentMenu(self)
-                self._options_list.append(optionButton)
-                self._configureButton(optionButton)
-
-                # Set up checkable command wrapper if needed
-                if data['checkable'] and data['command'] and data['command'] != self._dummy_command:
-                    self._setup_checkable_command(optionButton, data['command'])
-
-                # Add submenu binding if this is a submenu
-                if self.is_submenu:
-                    optionButton.bind("<Enter>", lambda e, submenu=self: submenu.change_hover(self), add="+")
-                    self._setup_submenu_timers(optionButton)
-
-                optionButton.pack(
-                    side="top",
-                    fill="both",
-                    expand=True,
-                    padx=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR),
-                    pady=self._scaled_padding + (self.corner_radius/DEFAULT_CORNER_RADIUS_FACTOR)
-                )
-
-    def _destroy_scrollable_frame(self) -> None:
-        """Remove scrollable frame and move options back to main frame."""
-        if self._scrollable_frame is None:
-            return
-
-        # Store current options data before recreating them
-        options_data = []
-        for option in self._options_list:
-            try:
-                if isinstance(option, _CDMSubmenuButton):
-                    options_data.append({
-                        'type': 'submenu',
-                        'text': option.cget('option'),
-                        'accelerator': option.cget('accelerator'),
-                        'icon': option.cget('icon'),
-                        'icon_size': option.cget('icon_size'),
-                        'submenu': option.submenu
-                    })
-                else:
-                    original_text = option.cget('option')
-                    options_data.append({
-                        'type': 'option',
-                        'text': original_text,
-                        'command': option.cget('command'),
-                        'accelerator': option.cget('accelerator'),
-                        'icon': option.cget('icon'),
-                        'icon_size': option.cget('icon_size'),
-                        'checkable': option.cget('checkable'),
-                        'checked': option.cget('checked'),
-                        'enabled': option.cget('enabled')
-                    })
-            except Exception as e:
-                warnings.warn(f"Error processing option during scrollable frame destruction: {e}")
-                continue
-        
         # Clear existing options with proper error handling
         for option in self._options_list[:]:
             try:
@@ -2215,17 +1534,21 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 continue
         self._options_list.clear()
 
-        # Destroy scrollable frame with error handling
-        try:
-            if self._scrollable_frame and hasattr(self._scrollable_frame, 'destroy'):
-                self._scrollable_frame.destroy()
-        except Exception as e:
-            warnings.warn(f"Error destroying scrollable frame: {e}")
-        finally:
-            self._scrollable_frame = None
-            self._options_container = self
+        if process == "destruction":
+            # Destroy scrollable frame with error handling
+            try:
+                if self._scrollable_frame and hasattr(self._scrollable_frame, 'destroy'):
+                    self._scrollable_frame.destroy()
+            except Exception as e:
+                warnings.warn(f"Error destroying scrollable frame: {e}")
+            finally:
+                self._scrollable_frame = None
+                self._options_container = self
+        else:
+            # Update the options container
+            self._options_container = self._scrollable_frame
 
-        # Recreate options in the main frame
+        # Recreate options in the main/scrollable frame
         for data in options_data:
             if data['type'] == 'submenu':
                 # Recreate submenu button
@@ -2237,7 +1560,8 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                     accelerator=data['accelerator'],
                     icon=data['icon'],
                     icon_size=data['icon_size'],
-                    width=self.width,
+                    enabled=data["enabled"],
+                    width=button_width,
                     height=self.height
                 )
                 submenuButtonSeed.setParentMenu(self)
@@ -2266,7 +1590,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 # Recreate option button
                 optionButton = _CDMOptionButton(
                     self._options_container,
-                    width=self.width,
+                    width=button_width,
                     height=self.height,
                     text=data['text'],
                     anchor="w",
@@ -2362,7 +1686,7 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
             except:
                 pass
 
-    def _setup_submenu_timers(self, button, submenu=None):
+    def _setup_submenu_timers(self, button, submenu: CustomDropdownMenu = None):
         """Set up delayed show/hide timer bindings for submenu interactions.
         
         This method creates timer-based event handlers that prevent submenu flickering
@@ -2401,97 +1725,5 @@ class CustomDropdownMenu(customtkinter.CTkFrame):
                 self.after_cancel(submenu._timer_id)
             submenu._timer_id = self.after(DEFAULT_SUBMENU_DELAY, lambda: submenu._left(self))
 
-        button.bind("<Enter>", lambda e: show_submenu_delayed(e), add="+")
+        button.bind("<Enter>", lambda e: show_submenu_delayed(e) if submenu.menu_seed_object.cget("enabled") is True else None, add="+")
         button.bind("<Leave>", lambda e: hide_submenu_delayed(e), add="+")
-
-
-class ContextMenu(CustomDropdownMenu):
-    """A right-click context menu with full dropdown menu functionality.
-    
-    This class extends CustomDropdownMenu to provide context menu behavior that appears
-    when the user right-clicks on a widget. It supports all enhanced features including:
-    - Keyboard accelerators and shortcuts
-    - Icons and checkable menu items
-    - Submenus and hierarchical organization  
-    - Scrollable menus for large option lists
-    - Automatic positioning at cursor location
-    
-    The context menu automatically binds to the target widget and its children,
-    providing consistent right-click behavior throughout the widget hierarchy.
-    
-    Example:
-        context_menu = ContextMenu(my_widget)
-        context_menu.add_option("Copy", copy_function, accelerator="Ctrl+C")
-        context_menu.add_option("Paste", paste_function, accelerator="Ctrl+V")
-        context_menu.add_separator()
-        context_menu.add_option("Delete", delete_function, accelerator="Delete")
-    """
-    def __init__(self, widget: customtkinter.CTkBaseClass, **kwargs):
-        """Initialize a context menu.
-
-        Args:
-            widget: The widget to attach the context menu to
-            **kwargs: Additional arguments passed to CustomDropdownMenu
-        """
-        # Create a dummy button to serve as the menu seed
-        self._dummy_button = customtkinter.CTkButton(widget.master, text="", width=0, height=0)
-        self._dummy_button.place_forget()  # Hide the dummy button
-
-        super().__init__(widget=self._dummy_button, **kwargs)
-
-        self.target_widget = widget
-        self._bind_context_menu()
-
-    def _bind_context_menu(self):
-        """Bind right-click event to show context menu."""
-        self.target_widget.bind("<Button-3>", self._show_context_menu, add="+")
-        # Also bind to child widgets if it's a container
-        try:
-            for child in self.target_widget.winfo_children():
-                child.bind("<Button-3>", self._show_context_menu, add="+")
-        except:
-            pass
-
-    def _show_context_menu(self, event):
-        """Show the context menu at the current cursor position.
-        
-        This method handles the right-click event by positioning the context menu
-        at the cursor location with a small offset for better visibility. It:
-        - Calculates cursor position relative to the target widget
-        - Applies a small offset to prevent menu from appearing under cursor
-        - Stores coordinates for potential repositioning
-        - Shows the menu with proper focus and layering
-        
-        Args:
-            event: The mouse event containing cursor coordinates
-            
-        Note:
-            Includes error handling to gracefully handle coordinate calculation
-            issues or widget state problems during menu display.
-        """
-        try:
-            # Get cursor position in screen coordinates
-            cursor_x = event.x_root - self.target_widget.winfo_rootx() + 30
-            cursor_y = event.y_root - self.target_widget.winfo_rooty() + 30
-
-            # Store the cursor position
-            self._context_x = cursor_x
-            self._context_y = cursor_y
-
-            # Show the menu at cursor position using screen coordinates
-            # Place it relative to the screen, not a parent widget
-            self.place(x=cursor_x, y=cursor_y)
-            self.lift()
-            self.focus()
-
-        except Exception as e:
-            warnings.warn(f"Failed to show context menu: {e}")
-
-    def _show(self):
-        """Override _show to use stored cursor position."""
-        if hasattr(self, '_context_x') and hasattr(self, '_context_y'):
-            self.place(x=self._context_x, y=self._context_y)
-        else:
-            super()._show()
-        self.lift()
-        self.focus()
